@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.venv/
+venv/
+env/
+
+# Backend
+backend/.env
+backend/instance/
+backend/static/uploads/avatars/
+backend/static/uploads/posts/
+backend/static/uploads/stories/
+backend/static/videos/reels/
+backend/static/videos/thumbnails/
+backend/static/videos/tmp/
+backend/*.log
+backend/backend.err.log
+backend/backend.log
+neurality_runtime.db
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+frontend/*.log
+frontend/frontend.err.log
+frontend/frontend.log
+
+# System
+.DS_Store
+Thumbs.db

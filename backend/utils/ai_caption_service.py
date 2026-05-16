@@ -176,3 +176,63 @@ def generate_caption_suggestions(prompt=None, image_file=None):
         "hashtags": hashtags,
         "model": model,
     }
+
+
+def generate_image_edit_advice(image_file):
+    api_key = current_app.config.get("GEMINI_API_KEY")
+    model = current_app.config.get("GEMINI_MODEL", "gemini-2.5-flash")
+
+    if not api_key:
+        raise CaptionGenerationError("GEMINI_API_KEY is not configured.", status_code=503)
+
+    image_bytes = image_file.read()
+    image_file.stream.seek(0)
+    
+    prompt_parts = [
+        {
+            "text": (
+                "Analyze this image and suggest photo editing parameters. "
+                "Return valid JSON with exactly these keys: "
+                "brightness (number 0-200, 100 is normal), "
+                "contrast (number 0-200, 100 is normal), "
+                "saturate (number 0-200, 100 is normal), "
+                "filter (one of: clarendon, moon, lark, reyes, juno, aden, cyber, midnight), "
+                "advice (short 1-sentence explanation of why these edits)."
+            )
+        },
+        {
+            "inline_data": {
+                "mime_type": image_file.mimetype or "image/jpeg",
+                "data": base64.b64encode(image_bytes).decode("utf-8"),
+            }
+        }
+    ]
+
+    payload = {
+        "contents": [{"parts": prompt_parts}],
+        "generationConfig": {"temperature": 0.4, "maxOutputTokens": 256},
+    }
+
+    endpoint = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+    request = urllib_request.Request(
+        endpoint,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json", "x-goog-api-key": api_key},
+        method="POST"
+    )
+
+    with urllib_request.urlopen(request, timeout=30) as response:
+        response_payload = json.loads(response.read().decode("utf-8"))
+
+    try:
+        raw_text = response_payload["candidates"][0]["content"]["parts"][0]["text"]
+        return _extract_json_block(raw_text)
+    except Exception:
+        # Robust fallback
+        return {
+            "brightness": 110,
+            "contrast": 105,
+            "saturate": 120,
+            "filter": "lark",
+            "advice": "Applied a vibrant, natural look to enhance the frame."
+        }

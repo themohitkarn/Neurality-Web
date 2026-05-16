@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { Search } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 import EmptyState from "../components/EmptyState";
 import { getErrorMessage, postApi } from "../services/api";
 
 
 export default function Explore() {
+  const navigate = useNavigate();
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -86,10 +88,22 @@ export default function Explore() {
 
         <div className="mt-10 grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
           {visiblePosts.map((post) => (
-            <article key={post.id} className="panel overflow-hidden">
-              <img src={post.image_url} alt={post.caption || `${post.author.username} drop`} className="aspect-square w-full object-cover" />
+            <article key={post.id} className="panel group overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-soft">
+              <div className="relative aspect-square w-full overflow-hidden">
+                <img
+                  src={post.image_url}
+                  alt={post.caption || `${post.author.username} drop`}
+                  className="h-full w-full object-cover transition duration-500 group-hover:scale-110"
+                />
+              </div>
               <div className="px-4 py-4">
-                <p className="font-semibold text-[color:var(--accent)]">@{post.author.username}</p>
+                <button
+                  type="button"
+                  onClick={() => navigate(`/profile/${post.author.id}`)}
+                  className="inline-block font-semibold text-[color:var(--accent)] transition-colors hover:text-ink"
+                >
+                  @{post.author.username}
+                </button>
                 <p className="mt-2 max-h-[72px] overflow-hidden text-sm leading-6 text-[color:var(--muted)]">
                   {post.caption || "Fresh drop from your network."}
                 </p>

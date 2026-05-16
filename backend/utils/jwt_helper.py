@@ -49,6 +49,9 @@ def get_current_user_optional():
 def token_required(view_func):
     @wraps(view_func)
     def wrapper(*args, **kwargs):
+        if request.method == "OPTIONS":
+            return view_func(*args, **kwargs)
+
         from extensions import db
         from models.user import User
 

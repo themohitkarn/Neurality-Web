@@ -133,12 +133,26 @@ def _follow_state_payload(target_user, result):
 @relationship_bp.post("/follow/<int:user_id>")
 @token_required
 def follow_user_route(user_id):
+    from routes.notification_routes import create_notification
+
     target_user, error_response = _follow_target_or_404(user_id)
     if error_response:
         return error_response
 
     try:
         result = follow_user(g.current_user, target_user)
+        if result.get("following"):
+            create_notification(
+                user_id=target_user.id,
+                actor_id=g.current_user.id,
+                type_="follow",
+            )
+        elif result.get("follow_requested"):
+            create_notification(
+                user_id=target_user.id,
+                actor_id=g.current_user.id,
+                type_="follow_request",
+            )
         db.session.commit()
     except ValueError as exc:
         return jsonify({"message": str(exc)}), 400
@@ -156,3 +170,29 @@ def unfollow_user_route(user_id):
     result = unfollow_user(g.current_user, target_user)
     db.session.commit()
     return jsonify(_follow_state_payload(target_user, result))
+
+
+@relationship_bp.get("/search-users")
+@token_required
+def search_users():
+    from sqlalchemy import func, or_
+    query = (request.args.get("q") or "").strip()
+    if not query:
+        return jsonify({"users": []})
+
+    # Search by username or full name, case insensitive, partial match
+    users = (
+        User.query.filter(
+            or_(
+                func.lower(User.username).like(f"%{query.lower()}%"),
+                func.lower(func.coalesce(User.full_name, "")).like(f"%{query.lower()}%"),
+            )
+        )
+        .order_by(User.username.asc())
+        .limit(20)
+        .all()
+    )
+    
+    return jsonify({
+        "users": [user.to_dict(viewer_id=g.current_user.id, include_email=False) for user in users]
+    })

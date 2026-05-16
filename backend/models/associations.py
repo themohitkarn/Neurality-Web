@@ -23,3 +23,19 @@ reel_likes = db.Table(
     db.Column("reel_id", db.Integer, db.ForeignKey("reels.id"), primary_key=True),
     db.Column("created_at", db.DateTime, nullable=False, server_default=db.func.now()),
 )
+
+
+post_reposts = db.Table(
+    "post_reposts",
+    db.Column("user_id", db.Integer, db.ForeignKey("users.id"), primary_key=True),
+    db.Column("post_id", db.Integer, db.ForeignKey("posts.id"), primary_key=True),
+    db.Column("created_at", db.DateTime, nullable=False, server_default=db.func.now()),
+)
+
+
+reel_reposts = db.Table(
+    "reel_reposts",
+    db.Column("user_id", db.Integer, db.ForeignKey("users.id"), primary_key=True),
+    db.Column("reel_id", db.Integer, db.ForeignKey("reels.id"), primary_key=True),
+    db.Column("created_at", db.DateTime, nullable=False, server_default=db.func.now()),
+)

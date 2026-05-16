@@ -1,120 +1,91 @@
 import { useEffect, useRef, useState } from "react";
-import { Heart, Play } from "lucide-react";
+import { BadgeCheck, Music } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import Avatar from "./Avatar";
+import BeatActionBar from "./BeatActionBar";
+import { useVideoAutoplay } from "../hooks/useVideoAutoplay";
 
-
-export default function ReelCard({ reel, onToggleLike, autoplayEnabled = true }) {
-  const containerRef = useRef(null);
+export default function ReelCard({ reel, onToggleLike, onAddStory, autoplayEnabled = true }) {
   const videoRef = useRef(null);
-  const [visible, setVisible] = useState(false);
-  const [liking, setLiking] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
   const [manualPlaying, setManualPlaying] = useState(false);
 
-  useEffect(() => {
-    if (!containerRef.current) {
-      return undefined;
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const entry = entries[0];
-        setVisible(entry.isIntersecting && entry.intersectionRatio >= 0.65);
-      },
-      {
-        threshold: [0.35, 0.65, 0.85],
-      },
-    );
-
-    observer.observe(containerRef.current);
-    return () => observer.disconnect();
-  }, []);
+  const { containerRef, isActive } = useVideoAutoplay(`reel-${reel.id}`, 0.65);
 
   useEffect(() => {
     const video = videoRef.current;
-    if (!video) {
-      return;
+    if (!video) return;
+
+    if ((autoplayEnabled && isActive) || manualPlaying) {
+      video.play().catch(() => {});
+    } else {
+      video.pause();
     }
-
-    if ((autoplayEnabled && visible) || manualPlaying) {
-      const playPromise = video.play();
-      if (playPromise?.catch) {
-        playPromise.catch(() => undefined);
-      }
-      return;
-    }
-
-    video.pause();
-  }, [autoplayEnabled, manualPlaying, visible]);
-
-  const handleLike = async () => {
-    setLiking(true);
-    await onToggleLike(reel.id);
-    setLiking(false);
-  };
+  }, [autoplayEnabled, isActive, manualPlaying]);
 
   return (
     <article
       ref={containerRef}
-      className="relative h-[calc(100vh-8.5rem)] snap-start overflow-hidden rounded-[32px] bg-[#120d15] shadow-[0_28px_80px_rgba(18,12,20,0.24)]"
+      className="relative h-full w-full mx-auto snap-start overflow-hidden bg-black flex items-center justify-center"
     >
       <video
         ref={videoRef}
         src={reel.video_url}
         poster={reel.thumbnail_url}
-        className="h-full w-full object-cover"
+        className="h-full w-full object-contain"
         loop
-        muted
+        muted={isMuted}
         playsInline
         onClick={() => {
           if (!autoplayEnabled) {
             setManualPlaying((current) => !current);
+          } else {
+            setIsMuted(!isMuted);
           }
         }}
       />
 
-      <div className="absolute inset-0 bg-gradient-to-t from-[rgba(12,10,14,0.82)] via-[rgba(12,10,14,0.12)] to-transparent" />
+      <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/60 pointer-events-none" />
 
-      <div className="absolute left-5 top-5 rounded-full bg-white/14 px-3 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-white backdrop-blur-md">
-        Reels
-      </div>
-
-      <div className="absolute right-5 top-5 rounded-full bg-white/14 px-3 py-2 text-xs font-semibold text-white backdrop-blur-md">
-        {autoplayEnabled ? (visible ? "Playing" : "Queued") : manualPlaying ? "Playing" : "Tap to play"}
-      </div>
-
-      <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-5 p-5 sm:p-6">
-        <div className="max-w-xl">
-          <Link to={`/profile/${reel.author.id}`} className="flex items-center gap-3">
-            <Avatar src={reel.author.profile_pic} name={reel.author.username} size="md" />
-            <div className="text-white">
-              <p className="font-semibold">{reel.author.username}</p>
-              <p className="text-xs uppercase tracking-[0.24em] text-white/70">Video moment</p>
-            </div>
+      {/* Content Info (Bottom Left) */}
+      <div className="absolute left-4 bottom-8 right-16 flex flex-col gap-3 pointer-events-none">
+        <div className="flex items-center gap-3 pointer-events-auto">
+          <Link to={`/profile/${reel.author.id}`}>
+            <Avatar src={reel.author.profile_pic} name={reel.author.username} size="sm" className="ring-2 ring-white/20" />
           </Link>
-
-          <p className="mt-4 text-sm leading-7 text-white/88">
-            {reel.caption || "No caption added for this reel yet."}
-          </p>
-        </div>
-
-        <div className="flex flex-col items-center gap-3 text-white">
-          <button
-            type="button"
-            onClick={handleLike}
-            disabled={liking}
-            className={`flex h-14 w-14 items-center justify-center rounded-full backdrop-blur-md transition ${
-              reel.is_liked ? "bg-[rgba(142,13,115,0.88)]" : "bg-white/14 hover:bg-white/22"
-            }`}
-          >
-            <Heart size={18} fill={reel.is_liked ? "currentColor" : "none"} />
-          </button>
-          <span className="text-xs font-semibold">{reel.likes_count}</span>
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/14 backdrop-blur-md">
-            <Play size={16} className="translate-x-[1px]" />
+          <div className="flex flex-col">
+            <div className="flex items-center gap-1">
+              <span className="text-sm font-bold text-white">{reel.author.username}</span>
+              {reel.author.is_verified && <BadgeCheck size={14} className="text-blue-500" fill="currentColor" />}
+            </div>
+            <p className="text-[10px] text-white/60 uppercase tracking-widest font-black">Original Audio</p>
           </div>
+          <button className="px-3 py-1 rounded-full border border-white/30 text-[11px] font-bold text-white hover:bg-white/10 transition-colors">
+            Follow
+          </button>
         </div>
+
+        <div className="flex flex-col gap-1 pr-4">
+          <p className="text-[13px] text-white leading-relaxed line-clamp-2">
+            {reel.caption || "No caption added."}
+          </p>
+          {reel.music && (
+            <div className="flex items-center gap-2 mt-1">
+              <Music size={12} className="text-white/80" />
+              <span className="text-[11px] text-white/80 font-medium">{reel.music.artist} • {reel.music.title}</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Action Bar (Bottom Right) */}
+      <div className="absolute right-4 bottom-8 pointer-events-auto">
+        <BeatActionBar 
+          beat={reel} 
+          onToggleLike={onToggleLike} 
+          onAddStory={() => onAddStory?.({ ...reel, type: "reel" })}
+        />
       </div>
     </article>
   );

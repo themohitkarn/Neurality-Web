@@ -27,7 +27,31 @@ class User(db.Model):
     push_notifications = db.Column(db.Boolean, nullable=False, default=True)
     autoplay_reels = db.Column(db.Boolean, nullable=False, default=True)
     reduce_data_usage = db.Column(db.Boolean, nullable=False, default=False)
+    read_receipts_enabled = db.Column(db.Boolean, nullable=False, default=True)
+    typing_indicators_enabled = db.Column(db.Boolean, nullable=False, default=True)
+    # Enhanced features
+    is_verified = db.Column(db.Boolean, nullable=False, default=False)
+    is_admin = db.Column(db.Boolean, nullable=False, default=False)
+    totp_secret = db.Column(db.String(32), nullable=True)
+    two_factor_enabled = db.Column(db.Boolean, nullable=False, default=False)
+    
+    # Presence (Merged from user_presence)
+    presence_status = db.Column(db.String(20), nullable=False, default="offline") # online, away, dnd, offline
+    custom_status = db.Column(db.String(100), nullable=True)
+    status_emoji = db.Column(db.String(20), nullable=True)
+    last_active = db.Column(db.DateTime, nullable=True)
+    
+    # Security/Activity (Merged from user_security/presence)
+    last_login = db.Column(db.DateTime, nullable=True)
+    last_ip = db.Column(db.String(45), nullable=True)
+    failed_login_attempts = db.Column(db.Integer, nullable=False, default=0)
+    
+    # Granular privacy
+    who_can_comment = db.Column(db.String(20), nullable=False, default="everyone")  # everyone, followers, nobody
+    who_can_tag = db.Column(db.String(20), nullable=False, default="everyone")
+    story_privacy = db.Column(db.String(20), nullable=False, default="everyone")  # everyone, followers, close_friends
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    fcm_token = db.Column(db.String(255), nullable=True)
 
     posts = db.relationship(
         "Post",
@@ -71,6 +95,18 @@ class User(db.Model):
         "Reel",
         secondary=reel_likes,
         back_populates="liked_by",
+        lazy="dynamic",
+    )
+    reposted_posts = db.relationship(
+        "Post",
+        secondary="post_reposts",
+        back_populates="reposted_by",
+        lazy="dynamic",
+    )
+    reposted_reels = db.relationship(
+        "Reel",
+        secondary="reel_reposts",
+        back_populates="reposted_by",
         lazy="dynamic",
     )
 
@@ -138,6 +174,8 @@ class User(db.Model):
             "is_self": is_self,
             "is_following": is_following,
             "is_private": bool(self.is_private),
+            "is_verified": bool(self.is_verified),
+            "is_admin": bool(self.is_admin),
             "can_message": self.can_receive_messages_from(viewer_id) if viewer_id else bool(self.allow_message_requests),
         }
 
@@ -155,6 +193,11 @@ class User(db.Model):
                 "push_notifications": bool(self.push_notifications),
                 "autoplay_reels": bool(self.autoplay_reels),
                 "reduce_data_usage": bool(self.reduce_data_usage),
+                "read_receipts_enabled": bool(self.read_receipts_enabled),
+                "typing_indicators_enabled": bool(self.typing_indicators_enabled),
+                "who_can_comment": self.who_can_comment or "everyone",
+                "who_can_tag": self.who_can_tag or "everyone",
+                "story_privacy": self.story_privacy or "everyone",
             }
             payload["theme_preference"] = self.theme_preference or "system"
 

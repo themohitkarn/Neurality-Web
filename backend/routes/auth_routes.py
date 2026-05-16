@@ -113,3 +113,38 @@ def me():
             )
         }
     )
+
+
+@auth_bp.post("/change-password")
+@token_required
+def change_password():
+    payload = _get_payload()
+    current_password = payload.get("current_password") or ""
+    new_password = payload.get("new_password") or ""
+
+    if not current_password or not new_password:
+        return jsonify({"message": "Current and new passwords are required."}), 400
+
+    if not g.current_user.check_password(current_password):
+        return jsonify({"message": "Current password is incorrect."}), 401
+
+    if len(new_password) < 6:
+        return jsonify({"message": "New password must be at least 6 characters."}), 400
+
+    g.current_user.set_password(new_password)
+    db.session.commit()
+    return jsonify({"message": "Password changed successfully."})
+
+
+@auth_bp.post("/delete-account")
+@token_required
+def delete_account():
+    payload = _get_payload()
+    password = payload.get("password") or ""
+
+    if not g.current_user.check_password(password):
+        return jsonify({"message": "Password is incorrect."}), 401
+
+    db.session.delete(g.current_user)
+    db.session.commit()
+    return jsonify({"message": "Account deleted successfully."})

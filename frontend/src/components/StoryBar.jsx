@@ -1,64 +1,68 @@
-import { ImagePlus, Sparkles } from "lucide-react";
-
+import { Plus } from "lucide-react";
 import Avatar from "./Avatar";
 
 
-export default function StoryBar({ stories, onCreateStory, creatingStory, onOpenStory }) {
+export default function StoryBar({ stories = [], onOpenCreator, onOpenStory, creatingStory }) {
+  // Check if current user is in the stories list (the backend now puts them first if they have stories)
+  
   return (
-    <section className="panel soft-ring overflow-hidden px-5 py-5 sm:px-6">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <p className="font-display text-2xl text-ink">Stories</p>
-          <p className="text-sm text-[color:var(--muted)]">
-            Fast circles that disappear in 24 hours.
-          </p>
-        </div>
-        <label className="ghost-button cursor-pointer gap-2">
-          <ImagePlus size={16} />
-          {creatingStory ? "Uploading..." : "Add story"}
-          <input
-            type="file"
-            accept="image/*"
-            className="hidden"
-            disabled={creatingStory}
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-              if (file) {
-                onCreateStory(file);
-              }
-              event.target.value = "";
-            }}
-          />
-        </label>
-      </div>
-
-      <div className="mt-6 flex gap-4 overflow-x-auto pb-1">
-        {stories.length === 0 ? (
-          <div className="flex min-h-[112px] w-full items-center gap-3 rounded-[24px] border border-dashed border-[color:var(--line)] px-5 text-sm text-[color:var(--muted)]">
-            <Sparkles size={18} />
-            Stories will show up here as soon as people start sharing.
+    <div
+      className="flex gap-3 overflow-x-auto px-4 py-3 no-scrollbar"
+      style={{ WebkitOverflowScrolling: "touch" }}
+    >
+      {/* Create story / Your Story */}
+      <div className="flex flex-col items-center gap-1.5 shrink-0">
+        <button
+          type="button"
+          onClick={onOpenCreator}
+          className={`relative flex items-center justify-center rounded-full transition-transform active:scale-95 ${
+            creatingStory ? "opacity-60" : ""
+          }`}
+          style={{
+            width: 64,
+            height: 64,
+            background: "var(--surface)",
+            border: "1px solid var(--border-strong)",
+          }}
+        >
+          <div className="w-full h-full rounded-full flex items-center justify-center bg-[color:var(--surface)] overflow-hidden">
+             <Plus size={24} className="text-[color:var(--text-secondary)]" />
           </div>
-        ) : null}
-
-        {stories.map((storyGroup, index) => (
-          <button
-            key={storyGroup.user.id}
-            type="button"
-            onClick={() => onOpenStory(storyGroup)}
-            className="group flex min-w-[92px] flex-col items-center gap-3 text-center animate-fade-up"
-            style={{ animationDelay: `${index * 80}ms` }}
+          {/* Plus badge */}
+          <span
+            className="absolute bottom-0.5 right-0.5 flex h-5 w-5 items-center justify-center rounded-full text-white border-2 border-[color:var(--bg-card)]"
+            style={{ background: "var(--accent)", fontSize: 12, fontWeight: 700 }}
           >
-            <span className="story-ring flex h-[74px] w-[74px] items-center justify-center rounded-full p-[3px] shadow-soft">
-              <span className="flex h-full w-full items-center justify-center rounded-full bg-[var(--surface-strong)]">
-                <Avatar src={storyGroup.user.profile_pic} name={storyGroup.user.username} size="md" />
-              </span>
-            </span>
-            <span className="max-w-[90px] truncate text-sm font-medium text-ink">
-              {storyGroup.user.username}
-            </span>
-          </button>
-        ))}
+            +
+          </span>
+        </button>
+        <span className="text-[10px] font-medium" style={{ color: "var(--text-muted)" }}>
+          {creatingStory ? "Posting…" : "Your story"}
+        </span>
       </div>
-    </section>
+
+      {/* Other stories */}
+      {stories.map((group) => (
+        <div
+          key={group.user.id}
+          className="flex flex-col items-center gap-1.5 shrink-0"
+        >
+          <Avatar
+            src={group.user.profile_pic}
+            name={group.user.username}
+            size="lg"
+            hasStory={true}
+            storySeen={group.all_seen}
+            onClick={() => onOpenStory(group)}
+          />
+          <span
+            className="text-[10px] font-medium max-w-[64px] truncate"
+            style={{ color: group.all_seen ? "var(--text-muted)" : "var(--text-primary)" }}
+          >
+            {group.user.username}
+          </span>
+        </div>
+      ))}
+    </div>
   );
 }

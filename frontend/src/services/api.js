@@ -3,19 +3,41 @@ import axios from "axios";
 
 export const TOKEN_STORAGE_KEY = "neurality_token";
 export const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
-export const SOCKET_BASE_URL = API_BASE_URL.replace(/\/api\/?$/, "");
+
+const getBaseUrl = () => {
+  try {
+    const url = new URL(API_BASE_URL);
+    return `${url.protocol}//${url.hostname}`;
+  } catch (e) {
+    return "http://localhost";
+  }
+};
+
+export const SOCKET_BASE_URL = getBaseUrl();
+export const REALTIME_BASE_URL = import.meta.env.VITE_REALTIME_URL || "http://localhost:5001";
+export const REALTIME_API_URL = import.meta.env.VITE_REALTIME_API_URL || `${REALTIME_BASE_URL}/api`;
+
 
 const api = axios.create({
   baseURL: API_BASE_URL,
 });
 
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem(TOKEN_STORAGE_KEY);
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
+const realtimeApi = axios.create({
+  baseURL: REALTIME_API_URL,
 });
+
+const setupInterceptors = (instance) => {
+  instance.interceptors.request.use((config) => {
+    const token = localStorage.getItem(TOKEN_STORAGE_KEY);
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  });
+};
+
+setupInterceptors(api);
+setupInterceptors(realtimeApi);
 
 export const getErrorMessage = (error) =>
   error?.response?.data?.message || "Something went wrong. Please try again.";
@@ -29,6 +51,8 @@ export const authApi = {
     }),
   login: (payload) => api.post("/auth/login", payload),
   me: () => api.get("/auth/me"),
+  changePassword: (payload) => api.post("/auth/change-password", payload),
+  deleteAccount: (payload) => api.post("/auth/delete-account", payload),
 };
 
 export const aiApi = {
@@ -38,6 +62,15 @@ export const aiApi = {
         "Content-Type": "multipart/form-data",
       },
     }),
+  editSuggestions: (payload) =>
+    api.post("/ai/edit-suggestions", payload, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    }),
+  getSmartReplies: (context) => api.post("/ai/suggest-replies", { context }),
+  translateText: (text, target_lang) => api.post("/ai/translate", { text, target_lang }),
+  summarizeChat: (context) => api.post("/ai/summarize", { context }),
 };
 
 export const postApi = {
@@ -50,6 +83,7 @@ export const postApi = {
   feed: (page = 1, perPage = 6) => api.get(`/posts/feed?page=${page}&per_page=${perPage}`),
   recommended: (limit = 6) => api.get(`/posts/recommended?limit=${limit}`),
   toggleLike: (postId) => api.post(`/posts/like/${postId}`),
+  toggleRepost: (postId) => api.post(`/posts/repost/${postId}`),
 };
 
 export const reelApi = {
@@ -61,6 +95,8 @@ export const reelApi = {
     }),
   feed: (page = 1, perPage = 8) => api.get(`/reels/feed?page=${page}&per_page=${perPage}`),
   toggleLike: (reelId) => api.post(`/reels/like/${reelId}`),
+  toggleRepost: (reelId) => api.post(`/reels/repost/${reelId}`),
+  toggleSave: (reelId) => api.post(`/reels/save/${reelId}`),
 };
 
 export const commentApi = {
@@ -69,12 +105,33 @@ export const commentApi = {
 };
 
 export const chatApi = {
-  users: () => api.get("/chat/users"),
-  messages: (userId) => api.get(`/chat/messages/${userId}`),
-  requests: () => api.get("/chat/requests"),
+  getConversations: () => realtimeApi.get("/conversations"),
+  getMessages: (userId) => realtimeApi.get(`/chat/dm/${userId}`),
+  getMessageRequests: () => api.get("/chat/requests"),
   createRequest: (payload) => api.post("/chat/request", payload),
   acceptRequest: (payload) => api.post("/chat/accept", payload),
   rejectRequest: (payload) => api.post("/chat/reject", payload),
+  
+  // Group Chat
+  getGroups: () => realtimeApi.get("/conversations"), // Conversations includes groups
+  getGroupMessages: (conversationId) => realtimeApi.get(`/messages/${conversationId}`),
+  groupDetails: (conversationId) => realtimeApi.get(`/messages/${conversationId}`),
+  createGroup: (payload) => realtimeApi.post("/groups/create", payload, {
+    headers: { "Content-Type": "multipart/form-data" }
+  }),
+  saveFCMToken: (payload) => api.post("/user/fcm-token", payload),
+  upload: (formData) => api.post("/chat/upload", formData, {
+    headers: { "Content-Type": "multipart/form-data" }
+  }),
+  getSharedMedia: (conversationId) => realtimeApi.get(`/conversations/${conversationId}/media`),
+};
+
+export const shareApi = {
+  searchUsers: (query) => api.get(`/search-users?q=${encodeURIComponent(query)}`),
+  recentChats: () => api.get("/share/recent-chats"),
+  following: () => api.get("/share/following"),
+  suggestedUsers: () => api.get("/share/suggested-users"),
+  sendShare: (payload) => realtimeApi.post("/chat/share", payload),
 };
 
 export const userApi = {
@@ -112,6 +169,52 @@ export const storyApi = {
       },
     }),
   feed: () => api.get("/stories/feed"),
+  markSeen: (storyId) => api.post(`/stories/${storyId}/seen`),
+  react: (storyId, emoji) => api.post(`/stories/${storyId}/react`, { emoji }),
+};
+
+export const notificationApi = {
+  list: (page = 1) => api.get(`/notifications?page=${page}`),
+  markRead: (ids = null) => api.post("/notifications/read", ids ? { ids } : {}),
+  unreadCount: () => api.get("/notifications/unread-count"),
+};
+
+export const socialApi = {
+  toggleSave: (postId) => api.post(`/social/posts/${postId}/save`),
+  getSaved: (page = 1) => api.get(`/social/saved?page=${page}`),
+  togglePin: (postId) => api.post(`/social/posts/${postId}/pin`),
+  toggleBlock: (userId) => api.post(`/social/users/${userId}/block`),
+  listBlocked: () => api.get("/social/blocked"),
+  report: (payload) => api.post("/social/report", payload),
+};
+
+export const highlightApi = {
+  create: (payload) =>
+    api.post("/highlights/create", payload, {
+      headers: { "Content-Type": "multipart/form-data" },
+    }),
+  addStories: (highlightId, storyIds) =>
+    api.post(`/highlights/${highlightId}/add`, { story_ids: storyIds }),
+  getUserHighlights: (userId) => api.get(`/highlights/user/${userId}`),
+  getStories: (highlightId) => api.get(`/highlights/${highlightId}/stories`),
+  delete: (highlightId) => api.delete(`/highlights/${highlightId}`),
+  toggleCloseFriend: (userId) => api.post(`/highlights/close-friends/${userId}`),
+  listCloseFriends: () => api.get("/highlights/close-friends"),
+};
+
+// ── Admin API ──
+export const adminApi = {
+  dashboard: () => api.get("/admin/dashboard"),
+  listUsers: (page = 1, q = "") => api.get(`/admin/users?page=${page}&q=${encodeURIComponent(q)}`),
+  toggleVerify: (userId) => api.post(`/admin/users/${userId}/verify`),
+  banUser: (userId) => api.post(`/admin/users/${userId}/ban`),
+  toggleAdmin: (userId) => api.post(`/admin/users/${userId}/make-admin`),
+  listReports: (page = 1, status = "") =>
+    api.get(`/admin/reports?page=${page}${status ? `&status=${status}` : ""}`),
+  resolveReport: (reportId, action) =>
+    api.post(`/admin/reports/${reportId}/resolve`, { action }),
+  deletePost: (postId) => api.delete(`/admin/posts/${postId}`),
+  deleteReel: (reelId) => api.delete(`/admin/reels/${reelId}`),
 };
 
 export default api;

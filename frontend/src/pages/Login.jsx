@@ -37,61 +37,65 @@ export default function Login() {
   return (
     <AuthShell
       eyebrow="Welcome back"
-      title="Open the feed, pick up the story, and keep the moment moving."
-      description="Neurality blends a calm app surface with the familiar rhythm of sharing photos, stories, comments, and follows."
-      footerText="Need an account?"
+      title="Sign in to your account"
+      description=""
+      footerText="Don't have an account?"
       footerLink="/signup"
-      footerLabel="Create one"
+      footerLabel="Sign up"
     >
       <div>
-        <p className="font-display text-3xl text-ink">Login</p>
-        <p className="mt-2 text-sm leading-6 text-[color:var(--muted)]">
-          Use your email or username and the password you set when signing up.
+        <h1 className="text-2xl font-bold" style={{ color: "var(--text-primary)" }}>Login</h1>
+        <p className="mt-1.5 text-sm" style={{ color: "var(--text-muted)" }}>
+          Enter your credentials to access your account.
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="mt-8 space-y-4">
+      <form onSubmit={handleSubmit} className="mt-6 space-y-4">
         <div>
-          <label className="mb-2 block text-sm font-medium text-ink">Email or username</label>
+          <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+            Email or username
+          </label>
           <input
             value={identifier}
             onChange={(event) => setIdentifier(event.target.value)}
             className="field"
-            placeholder="santa or santa@neurality.dev"
+            placeholder="your@email.com"
             required
           />
         </div>
 
         <div>
-          <label className="mb-2 block text-sm font-medium text-ink">Password</label>
+          <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+            Password
+          </label>
           <input
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             className="field"
             type="password"
-            placeholder="Enter your password"
+            placeholder="••••••••"
             required
           />
         </div>
 
-        {error ? <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-500">{error}</p> : null}
+        {error ? (
+          <div className="rounded-xl px-4 py-3 text-sm" style={{ background: "rgba(239,68,68,0.1)", color: "#f87171" }}>
+            {error}
+          </div>
+        ) : null}
 
-        <button type="submit" disabled={submitting} className="accent-button w-full gap-2">
-          {submitting ? "Signing in..." : "Login"}
+        <button type="submit" disabled={submitting} className="btn-primary w-full">
+          {submitting ? "Signing in…" : "Login"}
           <ArrowRight size={16} />
         </button>
       </form>
 
-      <div className="mt-8 rounded-[24px] border border-[color:var(--line)] bg-white/70 px-5 py-4 text-sm text-[color:var(--muted)]">
-        Demo after seeding:
-        <p className="mt-1 font-medium text-ink">santa@neurality.dev / northpole123</p>
+      <div
+        className="mt-6 rounded-xl px-4 py-3 text-sm"
+        style={{ background: "var(--surface)", color: "var(--text-muted)" }}
+      >
+        Demo: <span style={{ color: "var(--text-primary)" }}>santa@neurality.dev</span> / <span style={{ color: "var(--text-primary)" }}>northpole123</span>
       </div>
-
-      <p className="mt-6 text-center text-sm text-[color:var(--muted)]">
-        <Link to="/signup" className="font-semibold text-[color:var(--accent)]">
-          Prefer to start fresh?
-        </Link>
-      </p>
     </AuthShell>
   );
 }

@@ -1,0 +1,11 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:latest
+    container_name: neurality_redis
+    ports:
+      - "6373:6379"
+    restart: always
+
+# You can add more services here later, like a celery worker

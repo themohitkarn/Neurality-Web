@@ -1,576 +1,405 @@
-import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, MessageCircleMore, Send } from "lucide-react";
-import { io } from "socket.io-client";
-
-import Avatar from "../components/Avatar";
-import ChatAccessNotice from "../components/ChatAccessNotice";
-import EmptyState from "../components/EmptyState";
-import MessageRequestsPanel from "../components/MessageRequestsPanel";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { useLocation, useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { SOCKET_BASE_URL, TOKEN_STORAGE_KEY, chatApi, getErrorMessage } from "../services/api";
+import { useSocket } from "../context/SocketContext";
+import { useCall } from "../context/CallContext";
+import { chatApi } from "../services/api";
 
+// Modular Neural Components (Refreshed at 2026-05-16 12:31)
+import ChatHeader from "../components/chat/ChatHeader"; // Force reload 2
+import MessageArea from "../components/chat/MessageArea";
+import ChatDock from "../components/chat/ChatDock";
+import ChatDetails from "../components/chat/ChatDetails";
+import OverlayManager from "../components/chat/OverlayManager";
+import InboxList from "../components/chat/InboxList";
+import MessageRequestsPanel from "../components/MessageRequestsPanel";
+import EmptyState from "../components/EmptyState";
+import ThemeSelector from "../components/chat/ThemeSelector";
+import DisappearingMessagesSelector from "../components/chat/DisappearingMessagesSelector";
+import { useTheme } from "../context/ThemeContext";
 
-function upsertMessage(list, message) {
-  if (list.some((item) => item.id === message.id)) {
-    return list;
-  }
-  return [...list, message];
-}
-
-
-function updateContactsWithMessage(contacts, message, currentUserId) {
-  const otherUser = message.sender_id === currentUserId ? message.receiver : message.sender;
-  const existing = contacts.find((item) => item.id === otherUser.id);
-  const updated = {
-    ...(existing || otherUser),
-    ...otherUser,
-    last_message_preview: message.content,
-    last_message_at: message.created_at,
-    has_conversation: true,
-    can_message: true,
-    can_send_message_request: false,
-    message_request_status: "accepted",
-    message_request_direction: null,
-    message_gate_reason: "accepted_request",
-  };
-
-  const remaining = contacts.filter((item) => item.id !== otherUser.id);
-  return [updated, ...remaining];
-}
-
+import { Settings, Users, Search, Loader2 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 
 export default function Chat() {
   const { user } = useAuth();
+  const { injectChatTheme } = useTheme();
+  const { socket, isConnected } = useSocket();
+  const { initiateCall } = useCall();
+  const { conversationId: urlConvId } = useParams();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // ── States ──
   const [contacts, setContacts] = useState([]);
   const [selectedContact, setSelectedContact] = useState(null);
-  const [showMobileConversation, setShowMobileConversation] = useState(false);
-  const [activeSidebarTab, setActiveSidebarTab] = useState("chats");
   const [messages, setMessages] = useState([]);
-  const [draft, setDraft] = useState("");
-  const [loadingContacts, setLoadingContacts] = useState(true);
-  const [loadingRequests, setLoadingRequests] = useState(true);
-  const [loadingMessages, setLoadingMessages] = useState(false);
-  const [sendingRequest, setSendingRequest] = useState(false);
-  const [requestActionKey, setRequestActionKey] = useState("");
   const [requests, setRequests] = useState({ incoming: [], outgoing: [] });
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
   const [typingUserId, setTypingUserId] = useState(null);
+  const [replyTo, setReplyTo] = useState(null);
+  const [reactingTo, setReactingTo] = useState(null);
+  const [isVanishMode, setIsVanishMode] = useState(false);
+  const [suggestions, setSuggestions] = useState([]);
+  const [chatSummary, setChatSummary] = useState(null);
+  const [conversationId, setConversationId] = useState(urlConvId || null);
+  const [activeTheme, setActiveTheme] = useState("neural-dark");
+  const [isMediaTrayOpen, setIsMediaTrayOpen] = useState(false);
+  
+  // UI States
+  const isThreadOpen = !!urlConvId;
+  const isDetailsOpen = location.pathname.endsWith("/details");
+  const [isThemeOpen, setIsThemeOpen] = useState(false);
+  const [isVanishOpen, setIsVanishOpen] = useState(false);
+  const [activeVanish, setActiveVanish] = useState(0);
+  const [activeSidebarTab, setActiveSidebarTab] = useState("chats");
+  const [isGroupCreatorOpen, setIsGroupCreatorOpen] = useState(false);
 
-  const socketRef = useRef(null);
+  const messagesEndRef = useRef(null);
+  const chatContainerRef = useRef(null);
   const selectedContactRef = useRef(null);
-  const messageViewportRef = useRef(null);
 
+  useEffect(() => { selectedContactRef.current = selectedContact; }, [selectedContact]);
+
+  // ── Global Shell Fix (Hiding Navbar for entire Chat route) ──
   useEffect(() => {
-    selectedContactRef.current = selectedContact;
-  }, [selectedContact]);
-
-  const loadContacts = async () => {
-    setLoadingContacts(true);
-    try {
-      const { data } = await chatApi.users();
-      const nextContacts = data.users || [];
-      setContacts(nextContacts);
-      setSelectedContact((current) => {
-        if (current) {
-          return nextContacts.find((item) => item.id === current.id) || current;
-        }
-        return nextContacts[0] || null;
-      });
-      setError("");
-      setNotice("");
-    } catch (err) {
-      setError(getErrorMessage(err));
-    } finally {
-      setLoadingContacts(false);
-    }
-  };
-
-  const loadRequests = async () => {
-    setLoadingRequests(true);
-    try {
-      const { data } = await chatApi.requests();
-      setRequests({
-        incoming: data.incoming || [],
-        outgoing: data.outgoing || [],
-      });
-      setError("");
-    } catch (err) {
-      setError(getErrorMessage(err));
-    } finally {
-      setLoadingRequests(false);
-    }
-  };
-
-  const refreshSidebar = async () => {
-    await Promise.all([loadContacts(), loadRequests()]);
-  };
-
-  useEffect(() => {
-    refreshSidebar();
+    document.body.classList.add('chat-active');
+    return () => {
+      document.body.classList.remove('chat-active');
+      document.body.classList.remove('chat-thread-active');
+    };
   }, []);
 
   useEffect(() => {
-    if (!selectedContact?.id) {
-      return;
+    if (isThreadOpen) {
+      document.body.classList.add('chat-thread-active');
+    } else {
+      document.body.classList.remove('chat-thread-active');
     }
-    setShowMobileConversation(true);
+  }, [isThreadOpen]);
 
-    const loadMessages = async () => {
-      setLoadingMessages(true);
-      try {
-        const { data } = await chatApi.messages(selectedContact.id);
-        setMessages(data.messages || []);
-        setTypingUserId(null);
-        setSelectedContact((current) =>
-          current && current.id === selectedContact.id ? { ...current, ...(data.user || {}) } : current,
-        );
-        setError("");
-        setNotice("");
-      } catch (err) {
-        setError(getErrorMessage(err));
-      } finally {
-        setLoadingMessages(false);
-      }
-    };
-
-    loadMessages();
-  }, [selectedContact?.id]);
-
-  useEffect(() => {
-    const viewport = messageViewportRef.current;
-    if (!viewport) {
-      return;
-    }
-
-    viewport.scrollTop = viewport.scrollHeight;
-  }, [messages, typingUserId]);
-
-  useEffect(() => {
-    const token = localStorage.getItem(TOKEN_STORAGE_KEY);
-    if (!token) {
-      return undefined;
-    }
-
-    const socket = io(SOCKET_BASE_URL, {
-      auth: { token },
-      transports: ["websocket", "polling"],
-    });
-
-    socket.on("receive_message", (message) => {
-      setContacts((current) => updateContactsWithMessage(current, message, user.id));
-      const activeContact = selectedContactRef.current;
-      if (!activeContact) {
-        return;
-      }
-
-      if (message.sender_id === activeContact.id || message.receiver_id === activeContact.id) {
-        setMessages((current) => upsertMessage(current, message));
-        setSelectedContact((current) =>
-          current
-            ? {
-                ...current,
-                can_message: true,
-                can_send_message_request: false,
-                message_request_status: "accepted",
-                message_request_direction: null,
-                message_gate_reason: "accepted_request",
-              }
-            : current,
-        );
-      }
-    });
-
-    socket.on("typing_indicator", (payload) => {
-      const activeContact = selectedContactRef.current;
-      if (!activeContact || payload.from_user_id !== activeContact.id) {
-        return;
-      }
-      setTypingUserId(payload.is_typing ? payload.from_user_id : null);
-    });
-
-    socket.on("message_error", (payload) => {
-      setError(payload?.message || "Something went wrong in chat.");
-      setNotice("");
-    });
-
-    socket.on("message_request_created", (requestPayload) => {
-      refreshSidebar();
-      const otherUserId =
-        requestPayload.sender_id === user.id ? requestPayload.receiver_id : requestPayload.sender_id;
-
-      setSelectedContact((current) =>
-        current && current.id === otherUserId
-          ? {
-              ...current,
-              can_message: false,
-              can_send_message_request: false,
-              message_request_status: "pending",
-              message_request_direction: requestPayload.sender_id === user.id ? "outgoing" : "incoming",
-              message_request_id: requestPayload.id,
-              message_gate_reason:
-                requestPayload.sender_id === user.id
-                  ? "pending_outgoing_request"
-                  : "pending_incoming_request",
-            }
-          : current,
-      );
-      setActiveSidebarTab("requests");
-      setNotice(
-        requestPayload.sender_id === user.id
-          ? "Message request sent."
-          : `${requestPayload.sender.username} sent you a message request.`,
-      );
-      setError("");
-    });
-
-    socket.on("message_request_updated", (requestPayload) => {
-      refreshSidebar();
-      setNotice(
-        requestPayload.status === "accepted" ? "Message request accepted." : "Message request rejected.",
-      );
-      setError("");
-    });
-
-    socketRef.current = socket;
-    return () => {
-      socket.disconnect();
-      socketRef.current = null;
-    };
-  }, [user.id]);
-
-  useEffect(() => {
-    if (!selectedContact?.id || !socketRef.current || !selectedContact.can_message) {
-      return undefined;
-    }
-
-    socketRef.current.emit("typing_indicator", {
-      receiver_id: selectedContact.id,
-      is_typing: Boolean(draft.trim()),
-    });
-
-    const timer = window.setTimeout(() => {
-      socketRef.current?.emit("typing_indicator", {
-        receiver_id: selectedContact.id,
-        is_typing: false,
+  // ── Logic Core ──
+  const refreshSidebar = useCallback(async () => {
+    try {
+      const [convsRes, reqsRes] = await Promise.all([chatApi.getConversations(), chatApi.getMessageRequests()]);
+      const convs = convsRes?.data?.conversations || [];
+      const mappedContacts = convs.map(c => {
+        if (c.type === "direct") {
+          const other = c.members.find(m => m.user_id !== user?.id);
+          return { ...other?.user, conversationId: c.id, unread_count: c.unread_count, last_message: c.messages?.[0], is_group: false };
+        }
+        return { ...c, is_group: true, conversationId: c.id };
       });
-    }, 1200);
+      setContacts(mappedContacts);
+      setRequests(reqsRes?.data || { incoming: [], outgoing: [] });
 
-    return () => window.clearTimeout(timer);
-  }, [draft, selectedContact?.id, selectedContact?.can_message]);
+      // If we have a URL ID but no selected contact yet, find it in the list
+      if (urlConvId && !selectedContact) {
+        const match = mappedContacts.find(c => String(c.conversationId) === String(urlConvId));
+        if (match) setSelectedContact(match);
+      }
+    } catch (err) { console.error(err); }
+  }, [user, urlConvId, selectedContact]);
 
-  const handleSendMessage = (event) => {
-    event.preventDefault();
-    if (!draft.trim() || !selectedContact || !socketRef.current || !selectedContact.can_message) {
-      return;
-    }
+  const loadMessages = useCallback(async (contact) => {
+    if (!contact) return;
+    try {
+      const res = contact.is_group ? await chatApi.getGroupMessages(contact.conversationId || contact.id) : await chatApi.getMessages(contact.id);
+      const data = res?.data || {};
+      setMessages(data.messages || []);
+      setConversationId(data.conversation?.id || contact.conversationId);
+      
+      // Initialize Settings
+      const settings = data.conversation?.settings || {};
+      if (settings.theme_id) injectChatTheme(settings.theme_id);
+      setActiveVanish(settings.disappearing_timer || 0);
 
-    socketRef.current.emit("send_message", {
-      receiver_id: selectedContact.id,
-      content: draft.trim(),
+      if (socket?.connected) socket.emit("conversation:join", data.conversation?.id || contact.conversationId);
+    } catch (err) { console.error(err); }
+  }, [socket, injectChatTheme]);
+
+  useEffect(() => { refreshSidebar(); }, [refreshSidebar]);
+  useEffect(() => { if (selectedContact) loadMessages(selectedContact); }, [selectedContact, loadMessages]);
+
+  useEffect(() => {
+    if (!socket) return;
+    const onReceive = (msg) => {
+      const active = selectedContactRef.current;
+      const isRelevance = (active && !active.is_group && String(active.id) === String(msg.sender_id)) || 
+                          (active && active.is_group && String(active.conversationId) === String(msg.conversation_id)) ||
+                          (String(msg.sender_id) === String(user?.id));
+
+      if (isRelevance) {
+        setMessages(prev => {
+          if (prev.some(m => String(m.id) === String(msg.id))) return prev;
+          const tempIndex = prev.findIndex(m => m.is_optimistic && m.content === msg.content);
+          if (tempIndex !== -1) {
+            const updated = [...prev];
+            updated[tempIndex] = msg;
+            return updated;
+          }
+          return [...prev, msg];
+        });
+      }
+      refreshSidebar();
+    };
+    socket.on("message:received", onReceive);
+    socket.on("message:deleted", ({ messageId }) => {
+      setMessages(prev => prev.filter(m => String(m.id) !== String(messageId)));
+      refreshSidebar();
     });
-    setDraft("");
-  };
-
-  const handleSendRequest = async (receiverId = selectedContact?.id) => {
-    if (!receiverId) {
-      return;
-    }
-
-    setSendingRequest(true);
-    try {
-      await chatApi.createRequest({ receiver_id: receiverId });
-      await refreshSidebar();
-      setSelectedContact((current) =>
-        current && current.id === receiverId
-          ? {
-              ...current,
-              can_message: false,
-              can_send_message_request: false,
-              message_request_status: "pending",
-              message_request_direction: "outgoing",
-              message_gate_reason: "pending_outgoing_request",
-            }
-          : current,
-      );
-      setError("");
-      setNotice("Message request sent.");
-      setActiveSidebarTab("requests");
-    } catch (err) {
-      setError(getErrorMessage(err));
-      setNotice("");
-    } finally {
-      setSendingRequest(false);
-    }
-  };
-
-  const handleRespondToRequest = async (requestItem, action) => {
-    const actionKey = `${action}-${requestItem.id}`;
-    setRequestActionKey(actionKey);
-    try {
-      if (action === "accepted") {
-        await chatApi.acceptRequest({ request_id: requestItem.id });
-      } else {
-        await chatApi.rejectRequest({ request_id: requestItem.id });
+    socket.on("message:deleted_for_me", ({ messageId }) => {
+      setMessages(prev => prev.filter(m => String(m.id) !== String(messageId)));
+    });
+    socket.on("message:typing", (d) => { if (d.conversationId === conversationId) setTypingUserId(d.isTyping ? d.userId : null); });
+    socket.on("ai:suggestions", (d) => { if (selectedContactRef.current && String(d.senderId) === String(selectedContactRef.current.id)) setSuggestions(d.suggestions || []); });
+    socket.on("error", (err) => { console.error("[Socket Error]", err); alert(err.message || "Something went wrong"); });
+    socket.on("unread_update", refreshSidebar);
+    socket.on("settings:sync", (data) => {
+      if (data.conversationId === urlConvId) {
+        if (data.key === "theme_id") injectChatTheme(data.value);
+        if (data.key === "disappearing_timer") setActiveVanish(data.value);
       }
-      await refreshSidebar();
+    });
 
-      if (selectedContact?.id === requestItem.sender.id) {
-        const { data } = await chatApi.messages(requestItem.sender.id);
-        setMessages(data.messages || []);
-        setSelectedContact((current) =>
-          current && current.id === requestItem.sender.id ? { ...current, ...(data.user || {}) } : current,
-        );
+    socket.on("privacy:blocked", (data) => {
+      if (selectedContactRef.current?.id === data.blockerId || selectedContactRef.current?.id === data.blockedId) {
+        navigate('/chat');
+        refreshSidebar();
+      }
+    });
+    return () => { 
+      socket.off("message:received", onReceive); 
+      socket.off("message:deleted");
+      socket.off("message:typing"); 
+      socket.off("ai:suggestions"); 
+      socket.off("message:deleted_for_me");
+      socket.off("unread_update"); 
+      socket.off("privacy:blocked");
+    };
+  }, [socket, conversationId, refreshSidebar, navigate]);
+
+  const handleSendMessage = async (content, type = "text", metadata = {}) => {
+    if (!socket || !isConnected || !content) return;
+
+    let finalContent = content;
+    let finalType = type;
+
+    try {
+      if (type === "image" && metadata.file) {
+        const formData = new FormData();
+        formData.append("file", metadata.file);
+        const res = await chatApi.upload(formData);
+        finalContent = res.data.url;
+      } else if (type === "voice" && metadata.blob) {
+        const formData = new FormData();
+        formData.append("file", metadata.blob, "voice.ogg");
+        const res = await chatApi.upload(formData);
+        finalContent = res.data.url;
       }
 
-      setError("");
-      setNotice(action === "accepted" ? "Message request accepted." : "Message request rejected.");
+      const tempId = `temp-${Date.now()}`;
+      setMessages(prev => [...prev, { 
+        id: tempId, 
+        content: finalContent, 
+        sender_id: user.id, 
+        is_mine: true, 
+        is_optimistic: true, 
+        reply_to: replyTo,
+        type: finalType 
+      }]);
+
+      socket.emit("message:send", {
+        conversationId,
+        content: finalContent,
+        type: finalType,
+        receiverId: selectedContact.is_group ? undefined : selectedContact.id,
+        groupId: selectedContact.is_group ? selectedContact.id : undefined,
+        isVanish: isVanishMode,
+        replyToId: replyTo?.id
+      });
+
+      setReplyTo(null);
     } catch (err) {
-      setError(getErrorMessage(err));
-      setNotice("");
-    } finally {
-      setRequestActionKey("");
+      console.error("Signal delivery failed:", err);
     }
   };
 
-  const canSendToSelectedContact = selectedContact?.can_message === true;
-  const canSendRequestToSelectedContact = selectedContact?.can_send_message_request === true;
-  const hasOutgoingPending =
-    selectedContact?.message_request_status === "pending" &&
-    selectedContact?.message_request_direction === "outgoing";
-  const incomingRequestForSelected =
-    selectedContact &&
-    requests.incoming.find(
-      (requestItem) =>
-        requestItem.sender.id === selectedContact.id && requestItem.status === "pending",
-    );
+  const handleAction = (action, message) => {
+    if (action === 'reply') {
+      setReplyTo(message);
+    } else if (action === 'unsend') {
+      socket.emit("message:delete", { messageId: message.id });
+      // Optimistic delete
+      setMessages(prev => prev.filter(m => String(m.id) !== String(message.id)));
+    } else if (action === 'delete') {
+      socket.emit("message:delete_for_me", { messageId: message.id });
+      // Optimistic delete for me only
+      setMessages(prev => prev.filter(m => String(m.id) !== String(message.id)));
+    }
+  };
 
-  const conversationPanel = (mobile = false) => (
-    <section className="panel soft-ring flex min-h-[calc(100vh-8rem)] flex-col overflow-hidden">
-      {!selectedContact ? (
-        <div className="flex flex-1 items-center justify-center p-6">
-          <EmptyState
-            title="Choose a conversation"
-            description="Select someone to load message history and start chatting in real time."
-          />
-        </div>
-      ) : (
-        <>
-          <div className="border-b border-[color:var(--line)] px-6 py-5">
-            <div className="flex items-center gap-3">
-              {mobile ? (
-                <button type="button" onClick={() => setShowMobileConversation(false)} className="ghost-button h-11 w-11 rounded-2xl p-0">
-                  <ArrowLeft size={18} />
-                </button>
-              ) : null}
-              <Avatar src={selectedContact.profile_pic} name={selectedContact.username} size="md" />
-              <div>
-                <p className="font-semibold text-ink">{selectedContact.username}</p>
-                <p className="text-sm text-[color:var(--muted)]">
-                  {canSendToSelectedContact
-                    ? typingUserId === selectedContact.id
-                      ? "Typing..."
-                      : "Direct chat unlocked"
-                    : "Request-based messaging"}
-                </p>
-              </div>
-            </div>
-          </div>
+  const handleDeleteMessage = (messageId) => handleAction('delete', { id: messageId });
 
-          <div ref={messageViewportRef} className="flex-1 space-y-4 overflow-y-auto px-6 py-6">
-            {loadingMessages ? (
-              <p className="text-sm text-[color:var(--muted)]">Loading messages...</p>
-            ) : null}
+  const scrollToMessage = (messageId) => {
+    const el = document.getElementById(`msg-${messageId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.add('highlight-message');
+      setTimeout(() => el.classList.remove('highlight-message'), 2000);
+    }
+  };
 
-            {!loadingMessages && messages.length === 0 ? (
-              <p className="text-sm text-[color:var(--muted)]">
-                {canSendToSelectedContact
-                  ? "No messages yet. Send the first one to start the thread."
-                  : "Direct chat is locked until the messaging requirements are met."}
-              </p>
-            ) : null}
-
-            {messages.map((message) => (
-              <div
-                key={message.id}
-                className={`flex ${message.is_mine ? "justify-end" : "justify-start"}`}
-              >
-                <div
-                  className={`max-w-[72%] rounded-[24px] px-4 py-3 text-sm leading-6 ${
-                    message.is_mine
-                      ? "bg-[rgba(142,13,115,0.14)] text-ink"
-                      : "bg-white/84 text-[color:var(--muted)]"
-                  }`}
-                >
-                  <p>{message.content}</p>
-                  <p className="mt-2 text-[11px] uppercase tracking-[0.2em] text-[color:var(--muted)]">
-                    {new Date(message.created_at).toLocaleTimeString([], {
-                      hour: "numeric",
-                      minute: "2-digit",
-                    })}
-                  </p>
-                </div>
-              </div>
-            ))}
-
-            {typingUserId === selectedContact.id && canSendToSelectedContact ? (
-              <p className="text-sm text-[color:var(--muted)]">{selectedContact.username} is typing...</p>
-            ) : null}
-          </div>
-
-          {!canSendToSelectedContact ? (
-            <ChatAccessNotice
-              contact={selectedContact}
-              canSendRequest={canSendRequestToSelectedContact}
-              hasOutgoingPending={hasOutgoingPending}
-              incomingRequest={incomingRequestForSelected}
-              sendingRequest={sendingRequest}
-              requestActionKey={requestActionKey}
-              onSendRequest={handleSendRequest}
-              onRespond={handleRespondToRequest}
-            />
-          ) : (
-            <form onSubmit={handleSendMessage} className="border-t border-[color:var(--line)] px-6 py-5">
-              <div className="flex flex-col gap-3 sm:flex-row">
-                <input
-                  value={draft}
-                  onChange={(event) => setDraft(event.target.value)}
-                  className="field flex-1"
-                  placeholder={`Message ${selectedContact.username}`}
-                  maxLength={1000}
-                />
-                <button type="submit" className="accent-button gap-2">
-                  <Send size={16} />
-                  Send
-                </button>
-              </div>
-            </form>
-          )}
-        </>
-      )}
-    </section>
-  );
-
-  const contactList = (
-    <aside className="panel soft-ring overflow-hidden">
-      <div className="border-b border-[color:var(--line)] px-5 py-5">
-        <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[rgba(142,13,115,0.14)]">
-            <MessageCircleMore size={20} className="text-[color:var(--accent)]" />
-          </div>
-          <div>
-            <p className="font-display text-2xl text-ink">Chat</p>
-            <p className="text-sm text-[color:var(--muted)]">Public accounts chat directly. Private accounts use requests.</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="border-b border-[color:var(--line)] px-4 py-4">
-        <div className="grid grid-cols-2 gap-2 rounded-[22px] bg-[rgba(142,13,115,0.06)] p-1">
-          <button
-            type="button"
-            onClick={() => setActiveSidebarTab("chats")}
-            className={`rounded-[18px] px-4 py-2.5 text-sm font-semibold transition ${
-              activeSidebarTab === "chats"
-                ? "bg-white text-ink shadow-sm"
-                : "text-[color:var(--muted)]"
-            }`}
-          >
-            Chats
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveSidebarTab("requests")}
-            className={`rounded-[18px] px-4 py-2.5 text-sm font-semibold transition ${
-              activeSidebarTab === "requests"
-                ? "bg-white text-ink shadow-sm"
-                : "text-[color:var(--muted)]"
-            }`}
-          >
-            Message Requests
-          </button>
-        </div>
-      </div>
-
-      {activeSidebarTab === "requests" ? (
-        <div className="max-h-[calc(100vh-14rem)] overflow-y-auto">
-          <MessageRequestsPanel
-            requests={requests}
-            loading={loadingRequests}
-            requestActionKey={requestActionKey}
-            onSelectContact={setSelectedContact}
-            onRespond={handleRespondToRequest}
-          />
-          {!loadingRequests &&
-          requests.incoming.length === 0 &&
-          requests.outgoing.length === 0 ? (
-            <div className="px-4 py-6 text-sm text-[color:var(--muted)]">
-              No message requests right now.
-            </div>
-          ) : null}
-        </div>
-      ) : (
-        <div className="max-h-[calc(100vh-14rem)] overflow-y-auto p-3">
-          {loadingContacts ? (
-            <div className="px-3 py-4 text-sm text-[color:var(--muted)]">Loading conversations...</div>
-          ) : null}
-
-          {!loadingContacts && contacts.length === 0 ? (
-            <div className="px-3 py-4 text-sm text-[color:var(--muted)]">
-              No contacts yet. Public accounts will chat directly once you start talking.
-            </div>
-          ) : null}
-
-          {contacts.map((contact) => (
-            <button
-              key={contact.id}
-              type="button"
-              onClick={() => setSelectedContact(contact)}
-              className={`flex w-full items-center gap-3 rounded-[22px] px-3 py-3 text-left transition ${
-                selectedContact?.id === contact.id ? "bg-white/88" : "hover:bg-white/68"
-              }`}
-            >
-              <Avatar src={contact.profile_pic} name={contact.username} size="md" />
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold text-ink">{contact.username}</p>
-                <p className="truncate text-xs text-[color:var(--muted)]">
-                  {contact.last_message_preview ||
-                    (contact.can_message
-                      ? "Direct chat available"
-                      : contact.message_request_status === "pending"
-                        ? "Message request pending"
-                        : "Private account requires approval")}
-                </p>
-              </div>
-              {!contact.can_message ? (
-                <span className="rounded-full bg-[rgba(142,13,115,0.12)] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[color:var(--accent)]">
-                  {contact.message_request_status === "pending" ? "Pending" : "Private"}
-                </span>
-              ) : null}
-            </button>
-          ))}
-        </div>
-      )}
-    </aside>
-  );
+  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, typingUserId]);
 
   return (
-    <main className="mx-auto max-w-[1440px] px-4 py-4 lg:py-6">
-      <section className="space-y-5 lg:hidden">
-        {showMobileConversation && selectedContact ? conversationPanel(true) : contactList}
-      </section>
-
-      <section className="hidden gap-6 lg:grid xl:grid-cols-[340px_minmax(0,1fr)]">
-        {contactList}
-        {conversationPanel(false)}
-      </section>
-
-      {notice ? (
-        <div className="mt-5 rounded-[24px] bg-[rgba(142,13,115,0.08)] px-5 py-4 text-sm text-[color:var(--accent)]">
-          {notice}
+    <div className="h-[100dvh] w-full bg-bg-amoled text-white flex items-stretch overflow-hidden relative">
+      
+      {/* 1. SIDEBAR */}
+      <aside className={`
+        flex-shrink-0 flex-col h-full border-r border-white/5 bg-bg-amoled z-20
+        ${isThreadOpen ? 'hidden lg:flex' : 'flex w-full lg:w-[380px] xl:w-[420px]'}
+      `}>
+        <header className="px-6 py-5 flex items-center justify-between">
+          <h1 className="text-xl font-black tracking-tight text-white uppercase italic">Signals</h1>
+          <div className="flex gap-1">
+            <button onClick={() => setIsGroupCreatorOpen(true)} className="w-10 h-10 flex items-center justify-center bg-white/5 rounded-xl transition-all"><Users size={18} /></button>
+            <button className="w-10 h-10 flex items-center justify-center bg-white/5 rounded-xl transition-all"><Settings size={18} /></button>
+          </div>
+        </header>
+        <div className="px-4 pb-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" size={16} />
+            <input placeholder="Search signals..." className="w-full bg-white/5 border border-white/5 rounded-xl py-2.5 pl-10 pr-4 text-sm focus:bg-white/10 outline-none" />
+          </div>
         </div>
-      ) : null}
-      {error ? <div className="mt-5 rounded-[24px] bg-red-50 px-5 py-4 text-sm text-red-500">{error}</div> : null}
-    </main>
+        <div className="flex p-1 bg-white/5 mx-4 rounded-xl border border-white/5 mb-2">
+          {["chats", "requests"].map(t => (
+            <button key={t} onClick={() => setActiveSidebarTab(t)} className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${activeSidebarTab === t ? "bg-accent text-white" : "text-white/40"}`}>{t}</button>
+          ))}
+        </div>
+        <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar">
+          {activeSidebarTab === "chats" ? (
+            <InboxList 
+              contacts={contacts} 
+              selectedId={selectedContact?.id} 
+              onSelect={(c) => { 
+                setSelectedContact(c); 
+                navigate(`/chat/${c.conversationId}`);
+              }} 
+              currentUser={user} 
+            />
+          ) : (
+            <MessageRequestsPanel requests={requests} onRefresh={refreshSidebar} />
+          )}
+        </div>
+      </aside>
+
+      {/* 2. CHAT THREAD / DETAILS */}
+      <main className={`
+        flex-1 flex flex-col min-h-0 relative h-full
+        ${!isThreadOpen ? 'hidden lg:flex' : 'flex'}
+      `}>
+        {selectedContact ? (
+          <>
+            {isDetailsOpen ? (
+              <ChatDetails 
+                contact={selectedContact} 
+                settings={{ theme_color: activeTheme, disappearing_timer: activeVanish }} 
+                onClose={() => navigate(`/chat/${urlConvId}`)} 
+                onUpdateSettings={(id) => {
+                  if (id === "theme") setIsThemeOpen(true);
+                  if (id === "disappearing") setIsVanishOpen(true);
+                }} 
+                onBlock={() => {
+                  if (window.confirm(`Block ${selectedContact.username}? They will not be able to message you or see your presence.`)) {
+                    socket.emit("user:block", { targetId: selectedContact.id });
+                    navigate('/chat');
+                  }
+                }}
+                onRestrict={() => {
+                  socket.emit("user:restrict", { targetId: selectedContact.id });
+                  alert("User restricted. Their messages will now appear in Requests.");
+                }}
+                onReport={() => {
+                  const reason = window.prompt("Reason for report (harassment, spam, etc.):");
+                  if (reason) {
+                    socket.emit("content:report", { 
+                      targetType: "user", 
+                      targetId: String(selectedContact.id), 
+                      reason 
+                    });
+                  }
+                }}
+              />
+            ) : (
+              <>
+                <ChatHeader 
+                  contact={selectedContact} 
+                  typingUserId={typingUserId} 
+                  onBack={() => navigate('/chat')} 
+                  onDetails={() => navigate(`/chat/${urlConvId}/details`)} 
+                  onCall={(type) => initiateCall(selectedContact, type)} 
+                />
+                <MessageArea 
+                  messages={messages} 
+                  user={user} 
+                  chatSummary={chatSummary} 
+                  onCloseSummary={() => setChatSummary(null)} 
+                  setReactingTo={setReactingTo} 
+                  onReplyClick={scrollToMessage}
+                  messagesEndRef={messagesEndRef} 
+                  chatContainerRef={chatContainerRef} 
+                />
+                <div className={`flex flex-col bg-bg-amoled ${isThemeOpen ? 'hidden lg:flex' : 'flex'}`}>
+                  <AnimatePresence>
+                    {suggestions.length > 0 && (
+                      <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} className="flex gap-2 overflow-x-auto no-scrollbar px-4 pb-3">
+                        {suggestions.map((s, i) => <button key={i} onClick={() => handleSendMessage(s)} className="flex-shrink-0 px-4 py-2 bg-white/5 rounded-full text-[11px] font-bold text-white/60">{s}</button>)}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                  <ChatDock onSend={handleSendMessage} onCamera={() => {}} onMedia={() => {}} onStickers={() => {}} onTyping={(it) => socket?.emit("message:typing", { conversationId, isTyping: it })} isConnected={isConnected} isMediaTrayOpen={isMediaTrayOpen} setIsMediaTrayOpen={setIsMediaTrayOpen} replyTo={replyTo} onCancelReply={() => setReplyTo(null)} />
+                </div>
+              </>
+            )}
+          </>
+        ) : (
+          <div className="flex-1 flex items-center justify-center p-12 text-center"><EmptyState title="Neural Signal Offline" description="Select a path to begin encrypted communication." /></div>
+        )}
+      </main>
+
+      {/* 3. MODALS & OVERLAYS */}
+      <ThemeSelector 
+        isOpen={isThemeOpen} 
+        onClose={() => setIsThemeOpen(false)} 
+        onSelect={(themeId) => {
+          injectChatTheme(themeId);
+          socket.emit("settings:update", { conversationId: urlConvId, key: "theme_id", value: themeId });
+          setIsThemeOpen(false);
+        }}
+      />
+
+      <DisappearingMessagesSelector
+        isOpen={isVanishOpen}
+        activeValue={activeVanish}
+        onClose={() => setIsVanishOpen(false)}
+        onSelect={(val) => {
+          setActiveVanish(val);
+          socket.emit("settings:update", { conversationId: urlConvId, key: "disappearing_timer", value: val });
+          setIsVanishOpen(false);
+        }}
+      />
+
+      <OverlayManager 
+        isDetailsOpen={isDetailsOpen} selectedContact={selectedContact} activeTheme={activeTheme} 
+        onCloseDetails={() => navigate(`/chat/${urlConvId}`)} onOpenTheme={() => { navigate(`/chat/${urlConvId}`); setIsThemeOpen(true); }}
+        isThemeOpen={isThemeOpen} setActiveTheme={setActiveTheme} onCloseTheme={() => setIsThemeOpen(false)}
+        isGroupCreatorOpen={isGroupCreatorOpen} onCloseGroupCreator={() => setIsGroupCreatorOpen(false)} onGroupCreated={(c) => { setIsGroupCreatorOpen(false); setSelectedContact(c); navigate(`/chat/${c.conversationId}`); }}
+        reactingTo={reactingTo} setReactingTo={setReactingTo} 
+        onReaction={(e) => { socket.emit("reaction:toggle", { messageId: reactingTo.id, emoji: e }); setReactingTo(null); }}
+        onAction={handleAction}
+        currentUser={user}
+      />
+    </div>
   );
 }

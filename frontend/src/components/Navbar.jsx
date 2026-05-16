@@ -9,40 +9,59 @@ import {
   Settings2,
   SquarePlus,
   UserCircle2,
+  Film,
+  Heart,
+  Send,
+  Shield,
 } from "lucide-react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../context/AuthContext";
-import { getErrorMessage, userApi } from "../services/api";
+import { getErrorMessage, notificationApi, userApi } from "../services/api";
 import Avatar from "./Avatar";
+import { useUnread } from "../context/UnreadContext";
 
 
 const sidebarNavItemClass = ({ isActive }) =>
-  `flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium transition ${
+  `flex items-center gap-3.5 rounded-xl px-4 py-3 text-sm font-medium transition-all duration-200 ${
     isActive
-      ? "bg-[rgba(142,13,115,0.12)] text-[color:var(--accent)]"
-      : "text-[color:var(--muted)] hover:bg-white/82 hover:text-ink"
+      ? "bg-[color:var(--surface-active)] text-[color:var(--text-primary)] font-semibold"
+      : "text-[color:var(--text-secondary)] hover:bg-[color:var(--surface)]"
   }`;
 
 const desktopPrimaryItems = [
-  { to: "/", label: "Home", icon: Home },
+  { to: "/", label: "Orbit", icon: Home },
   { to: "/stalk", label: "Stalk", icon: Search },
-  { to: "/explore", label: "Explore", icon: Compass },
   { to: "/drop", label: "Drop", icon: SquarePlus },
-  { to: "/chat", label: "Chat", icon: MessageCircleMore },
-  { to: "/notifications", label: "Notifications", icon: Bell },
+  { to: "/beat", label: "Beats", icon: Film },
+  { to: "/chat", label: "Signals", icon: MessageCircleMore },
+  { to: "/notifications", label: "Pulsar", icon: Heart },
 ];
 
 
 export default function Navbar({ onLogout }) {
   const { user } = useAuth();
+  const { totalUnread } = useUnread();
   const navigate = useNavigate();
 
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState("");
-  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const [unreadNotifs, setUnreadNotifs] = useState(0);
+
+  // Fetch unread notifications count on mount + poll every 30s
+  useEffect(() => {
+    const fetchUnread = async () => {
+      try {
+        const { data } = await notificationApi.unreadCount();
+        setUnreadNotifs(data.unread_count || 0);
+      } catch {}
+    };
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     if (query.trim().length < 2) {
@@ -71,7 +90,6 @@ export default function Navbar({ onLogout }) {
   const openProfile = (id) => {
     setQuery("");
     setResults([]);
-    setMobileSearchOpen(false);
     navigate(`/profile/${id}`);
   };
 
@@ -79,160 +97,144 @@ export default function Navbar({ onLogout }) {
 
   return (
     <>
-      <header className="sticky top-0 z-40 border-b border-[color:var(--line)] bg-[rgba(251,238,244,0.88)] px-4 py-4 backdrop-blur-xl lg:hidden">
-        <div className="flex items-center justify-between gap-3 lg:hidden">
-          <Link to="/" className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[rgba(142,13,115,0.12)]">
-              <span className="font-display text-2xl text-[color:var(--accent)]">N</span>
-            </div>
-            <div>
-              <p className="font-display text-xl font-bold tracking-tight text-ink">Neurality</p>
-              <p className="text-[11px] uppercase tracking-[0.24em] text-[color:var(--muted)]">
-                Mobile flow
-              </p>
-            </div>
+      {/* ── Mobile Top Bar ── */}
+      <header
+        className="sticky top-0 z-40 lg:hidden"
+        style={{
+          background: "var(--bg)",
+          borderBottom: "1px solid var(--border)",
+          paddingTop: "var(--safe-top)",
+        }}
+      >
+        <div className="flex items-center justify-between px-4 py-2.5">
+          <Link to="/" className="flex items-center gap-2">
+            <span
+              className="text-xl font-bold tracking-tight"
+              style={{
+                background: "linear-gradient(135deg, var(--gradient-start), var(--gradient-end))",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+              }}
+            >
+              Neurality
+            </span>
           </Link>
 
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setMobileSearchOpen((current) => !current)}
-              className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[color:var(--line)] bg-white/70 text-[color:var(--muted)]"
-            >
-              <Search size={18} />
-            </button>
+          <div className="flex items-center gap-1">
             <Link
-              to="/settings"
-              className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[color:var(--line)] bg-white/70 text-[color:var(--muted)]"
+              to="/notifications"
+              className="btn-icon relative"
+              style={{ width: 36, height: 36, background: "transparent" }}
             >
-              <Settings2 size={18} />
+              <Heart size={22} strokeWidth={1.8} />
+              {unreadNotifs > 0 && (
+                <span className="badge absolute -top-1 -right-1">{unreadNotifs > 9 ? "9+" : unreadNotifs}</span>
+              )}
             </Link>
-            <Link to={`/profile/${user?.id || ""}`} className="rounded-full">
-              <Avatar src={user?.profile_pic} name={user?.username} size="sm" />
+            <Link
+              to="/chat"
+              className="btn-icon relative"
+              style={{ width: 36, height: 36, background: "transparent" }}
+            >
+              <Send size={22} strokeWidth={1.8} />
+              {totalUnread > 0 && (
+                <span className="badge absolute -top-1 -right-1 bg-red-500">{totalUnread > 9 ? "9+" : totalUnread}</span>
+              )}
             </Link>
           </div>
         </div>
-
-        {mobileSearchOpen ? (
-          <div className="relative mt-4 lg:hidden">
-            <div className="panel flex items-center gap-3 rounded-full px-4 py-3">
-              <Search size={18} className="text-[color:var(--muted)]" />
-              <input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Stalk profiles"
-                className="w-full bg-transparent text-sm placeholder:text-[color:var(--muted)]"
-              />
-            </div>
-
-            {showSearchResults ? (
-              <div className="panel soft-ring absolute left-0 right-0 top-[calc(100%+10px)] overflow-hidden">
-                {searching ? (
-                  <div className="px-4 py-4 text-sm text-[color:var(--muted)]">Stalking profiles...</div>
-                ) : null}
-
-                {!searching && searchError ? (
-                  <div className="px-4 py-4 text-sm text-red-500">{searchError}</div>
-                ) : null}
-
-                {!searching && !searchError && results.length === 0 ? (
-                  <div className="px-4 py-4 text-sm text-[color:var(--muted)]">No matching users yet.</div>
-                ) : null}
-
-                {!searching && !searchError && results.length > 0 ? (
-                  <div className="divide-y divide-[color:var(--line)]">
-                    {results.map((result) => (
-                      <button
-                        key={result.id}
-                        type="button"
-                        onClick={() => openProfile(result.id)}
-                        className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-white/90"
-                      >
-                        <Avatar src={result.profile_pic} name={result.username} size="sm" />
-                        <div>
-                          <p className="font-medium text-ink">{result.username}</p>
-                          <p className="text-xs text-[color:var(--muted)]">
-                            {result.posts_count} drops - {result.followers_count} followers
-                          </p>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-
       </header>
 
-      <aside className="hidden h-screen border-r border-[color:var(--line)] bg-white/78 px-5 py-8 backdrop-blur-xl lg:sticky lg:top-0 lg:flex lg:flex-col">
-        <Link to="/" className="flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[rgba(142,13,115,0.12)]">
-            <span className="font-display text-2xl text-[color:var(--accent)]">N</span>
-          </div>
-          <div>
-            <p className="font-display text-2xl font-bold tracking-tight text-ink">Neurality</p>
-            <p className="text-xs uppercase tracking-[0.28em] text-[color:var(--muted)]">
-              desktop flow
-            </p>
-          </div>
+      {/* ── Desktop Sidebar ── */}
+      <aside
+        className="hidden h-screen lg:sticky lg:top-0 lg:flex lg:flex-col px-3 py-6"
+        style={{
+          background: "var(--bg)",
+          borderRight: "1px solid var(--border)",
+        }}
+      >
+        <Link to="/" className="flex items-center gap-3 px-4 mb-8">
+          <span
+            className="text-xl font-bold tracking-tight"
+            style={{
+              background: "linear-gradient(135deg, var(--gradient-start), var(--gradient-end))",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+            }}
+          >
+            Neurality
+          </span>
         </Link>
 
-        <nav className="mt-12 space-y-2">
+        <nav className="space-y-1 flex-1">
           {desktopPrimaryItems.map((item) => {
             const Icon = item.icon;
             return (
               <NavLink key={item.to} to={item.to} className={sidebarNavItemClass}>
-                <Icon size={18} />
+                <div className="relative">
+                  <Icon size={22} />
+                  {item.to === "/notifications" && unreadNotifs > 0 && (
+                    <span className="badge absolute -top-2 -right-2.5" style={{ fontSize: 9, minWidth: 16, height: 16 }}>
+                      {unreadNotifs > 9 ? "9+" : unreadNotifs}
+                    </span>
+                  )}
+                  {item.to === "/chat" && totalUnread > 0 && (
+                    <span className="badge absolute -top-2 -right-2.5 bg-red-500" style={{ fontSize: 9, minWidth: 16, height: 16 }}>
+                      {totalUnread > 9 ? "9+" : totalUnread}
+                    </span>
+                  )}
+                </div>
                 <span>{item.label}</span>
               </NavLink>
             );
           })}
         </nav>
 
-        <div className="mt-auto space-y-4">
-          <div className="relative">
-            <div className="rounded-2xl bg-[rgba(250,219,232,0.76)] px-4 py-3">
-              <div className="flex items-center gap-3">
-                <Search size={18} className="text-[color:var(--muted)]" />
-                <input
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Stalk people"
-                  className="w-full bg-transparent text-sm placeholder:text-[color:var(--muted)]"
-                />
-              </div>
+        <div className="space-y-1">
+          {/* Search */}
+          <div className="relative px-1 mb-4">
+            <div
+              className="flex items-center gap-2.5 rounded-xl px-3.5 py-2.5"
+              style={{ background: "var(--surface)", border: "1px solid var(--border)" }}
+            >
+              <Search size={16} style={{ color: "var(--text-muted)" }} />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search users..."
+                className="w-full bg-transparent text-sm outline-none"
+                style={{ color: "var(--text-primary)" }}
+              />
             </div>
 
             {showSearchResults ? (
-              <div className="panel soft-ring absolute left-0 right-0 top-[calc(100%+10px)] overflow-hidden">
+              <div
+                className="absolute left-0 right-0 top-[calc(100%+6px)] z-50 overflow-hidden rounded-xl shadow-soft-lg"
+                style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)" }}
+              >
                 {searching ? (
-                  <div className="px-4 py-4 text-sm text-[color:var(--muted)]">Stalking profiles...</div>
+                  <div className="px-4 py-3 text-sm" style={{ color: "var(--text-muted)" }}>Searching…</div>
                 ) : null}
-
                 {!searching && searchError ? (
-                  <div className="px-4 py-4 text-sm text-red-500">{searchError}</div>
+                  <div className="px-4 py-3 text-sm text-red-400">{searchError}</div>
                 ) : null}
-
                 {!searching && !searchError && results.length === 0 ? (
-                  <div className="px-4 py-4 text-sm text-[color:var(--muted)]">No matching people yet.</div>
+                  <div className="px-4 py-3 text-sm" style={{ color: "var(--text-muted)" }}>No results</div>
                 ) : null}
-
                 {!searching && !searchError && results.length > 0 ? (
-                  <div className="divide-y divide-[color:var(--line)]">
-                    {results.map((result) => (
+                  <div className="max-h-60 overflow-y-auto">
+                    {results.map((r) => (
                       <button
-                        key={result.id}
+                        key={r.id}
                         type="button"
-                        onClick={() => openProfile(result.id)}
-                        className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-white/90"
+                        onClick={() => openProfile(r.id)}
+                        className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-[color:var(--surface)]"
                       >
-                        <Avatar src={result.profile_pic} name={result.username} size="sm" />
+                        <Avatar src={r.profile_pic} name={r.username} size="sm" />
                         <div>
-                          <p className="font-medium text-ink">{result.username}</p>
-                          <p className="text-xs text-[color:var(--muted)]">
-                            {result.posts_count} drops - {result.followers_count} followers
+                          <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{r.username}</p>
+                          <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                            {r.full_name || `${r.followers_count} followers`}
                           </p>
                         </div>
                       </button>
@@ -244,25 +246,36 @@ export default function Navbar({ onLogout }) {
           </div>
 
           <NavLink to={`/profile/${user?.id || ""}`} className={sidebarNavItemClass}>
-            <UserCircle2 size={18} />
-            <span>Profile</span>
+            <UserCircle2 size={22} />
+            <span>Aura</span>
           </NavLink>
           <NavLink to="/settings" className={sidebarNavItemClass}>
-            <Settings2 size={18} />
+            <Settings2 size={22} />
             <span>Settings</span>
           </NavLink>
+          {user?.is_admin && (
+            <NavLink to="/admin" className={sidebarNavItemClass}>
+              <Shield size={22} />
+              <span>Admin</span>
+            </NavLink>
+          )}
 
-          <div className="flex items-center gap-3 rounded-2xl bg-[rgba(250,219,232,0.54)] px-4 py-4">
+          {/* User card */}
+          <div className="flex items-center gap-3 rounded-xl px-4 py-3 mt-4" style={{ background: "var(--surface)" }}>
             <Avatar src={user?.profile_pic} name={user?.username} size="sm" />
-            <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-ink">{user?.username}</p>
-              <p className="truncate text-xs text-[color:var(--muted)]">ready to drop</p>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{user?.username}</p>
+              <p className="truncate text-xs" style={{ color: "var(--text-muted)" }}>{user?.full_name || "Neurality"}</p>
             </div>
           </div>
 
-          <button type="button" onClick={onLogout} className="ghost-button w-full justify-start gap-2">
-            <LogOut size={16} />
-            Logout
+          <button
+            type="button"
+            onClick={onLogout}
+            className="flex w-full items-center gap-3.5 rounded-xl px-4 py-3 text-sm font-medium transition-colors text-[color:var(--text-muted)] hover:bg-[color:var(--surface)] hover:text-red-400"
+          >
+            <LogOut size={20} />
+            <span>Logout</span>
           </button>
         </div>
       </aside>

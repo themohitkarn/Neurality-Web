@@ -1,30 +1,72 @@
-const sizeClasses = {
-  sm: "h-10 w-10 text-sm",
-  md: "h-12 w-12 text-base",
-  lg: "h-16 w-16 text-lg",
-  xl: "h-24 w-24 text-2xl",
+const sizeMap = {
+  xs: 28,
+  sm: 36,
+  md: 44,
+  lg: 64,
+  xl: 88,
+};
+
+const textSizeMap = {
+  xs: "text-[10px]",
+  sm: "text-xs",
+  md: "text-sm",
+  lg: "text-xl",
+  xl: "text-2xl",
 };
 
 
-export default function Avatar({ src, name = "User", size = "md", className = "" }) {
-  const initials = name.trim().charAt(0).toUpperCase() || "N";
-  const baseClass = sizeClasses[size] || sizeClasses.md;
+export default function Avatar({ src, name = "", size = "md", hasStory = false, storySeen = false, className = "", onClick }) {
+  const dimension = sizeMap[size] || sizeMap.md;
+  const textSize = textSizeMap[size] || textSizeMap.md;
+  const initial = name ? name.charAt(0).toUpperCase() : "?";
+  const borderWidth = size === "xs" || size === "sm" ? 2 : 3;
 
-  if (src) {
+  const avatarContent = src ? (
+    <img
+      src={src}
+      alt={name}
+      className="h-full w-full rounded-full object-cover"
+      loading="lazy"
+      draggable={false}
+    />
+  ) : (
+    <div
+      className={`flex h-full w-full items-center justify-center rounded-full font-semibold ${textSize}`}
+      style={{ background: "var(--surface-active)", color: "var(--text-secondary)" }}
+    >
+      {initial}
+    </div>
+  );
+
+  if (hasStory) {
     return (
-      <img
-        src={src}
-        alt={name}
-        className={`${baseClass} rounded-full object-cover ${className}`}
-      />
+      <button
+        type="button"
+        onClick={onClick}
+        className={`shrink-0 p-[${borderWidth}px] rounded-full transition-transform duration-200 active:scale-95 ${
+          storySeen ? "story-ring-seen" : "story-ring"
+        } ${className}`}
+        style={{ width: dimension + borderWidth * 2 + 4, height: dimension + borderWidth * 2 + 4 }}
+      >
+        <div className="story-ring-inner rounded-full" style={{ width: dimension + 4, height: dimension + 4 }}>
+          <div style={{ width: dimension, height: dimension }} className="rounded-full overflow-hidden">
+            {avatarContent}
+          </div>
+        </div>
+      </button>
     );
   }
 
+  const Wrapper = onClick ? "button" : "div";
+
   return (
-    <div
-      className={`${baseClass} flex items-center justify-center rounded-full bg-[rgba(142,13,115,0.14)] font-display font-semibold text-[color:var(--accent)] ${className}`}
+    <Wrapper
+      type={onClick ? "button" : undefined}
+      onClick={onClick}
+      className={`shrink-0 rounded-full overflow-hidden transition-transform duration-200 ${onClick ? "active:scale-95" : ""} ${className}`}
+      style={{ width: dimension, height: dimension }}
     >
-      {initials}
-    </div>
+      {avatarContent}
+    </Wrapper>
   );
 }

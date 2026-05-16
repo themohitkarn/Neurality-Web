@@ -63,7 +63,7 @@ def seed_database():
     app = create_app()
     with app.app_context():
         ensure_upload_structure(app)
-        db.create_all()
+        # db.create_all()
 
         if User.query.count() > 0:
             print("Database already contains users. Seed skipped to avoid duplicates.")

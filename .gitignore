@@ -1,35 +1,163 @@
+# =========================
+# Dependencies
+# =========================
+node_modules/
+jspm_packages/
+bower_components/
+web_modules/
+
+# =========================
 # Python
+# =========================
+venv/
+.venv/
+env/
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
-.Python
-.venv/
-venv/
-env/
 
-# Backend
-backend/.env
-backend/instance/
-backend/static/uploads/avatars/
-backend/static/uploads/posts/
-backend/static/uploads/stories/
-backend/static/videos/reels/
-backend/static/videos/thumbnails/
-backend/static/videos/tmp/
-backend/*.log
-backend/backend.err.log
-backend/backend.log
-neurality_runtime.db
+# =========================
+# Environment files
+# =========================
+.env
+.env.*
+!.env.example
 
-# Frontend
-frontend/node_modules/
-frontend/dist/
-frontend/.env
-frontend/*.log
-frontend/frontend.err.log
-frontend/frontend.log
+# =========================
+# Build / Output
+# =========================
+dist/
+build/
+out/
+.next/
+.nuxt/
+.output/
+coverage/
+.nyc_output/
 
-# System
+# =========================
+# Cache
+# =========================
+.cache/
+.parcel-cache/
+.pytest_cache/
+.mypy_cache/
+.vite/
+.svelte-kit/
+.temp/
+
+# =========================
+# Logs
+# =========================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# =========================
+# Runtime data
+# =========================
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# =========================
+# IDE / Editor
+# =========================
+.vscode/
+.idea/
+.vscode-test/
+*.swp
+*.swo
+
+# =========================
+# OS files
+# =========================
 .DS_Store
 Thumbs.db
+
+# =========================
+# Prisma
+# =========================
+prisma/dev.db
+prisma/dev.db-journal
+
+# =========================
+# Uploads / Temp Media
+# =========================
+uploads/
+temp/
+tmp/
+*.tmp
+*.temp
+backend/static/uploads/
+backend/static/videos/
+
+# =========================
+# Firebase
+# =========================
+.firebase/
+firebase-debug.log
+
+# =========================
+# Expo / React Native
+# =========================
+.expo/
+.expo-shared/
+
+# =========================
+# AI / Generated
+# =========================
+generated/
+ai-output/
+
+# =========================
+# Testing
+# =========================
+playwright-report/
+test-results/
+*.lcov
+
+# =========================
+# Secrets
+# =========================
+*.pem
+*.key
+*.crt
+
+# =========================
+# TypeScript
+# =========================
+*.tsbuildinfo
+
+# =========================
+# Package Managers
+# =========================
+.pnpm-store
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
+
+# =========================
+# Misc
+# =========================
+*.tgz
+.lock-wscript
+.node_repl_history
+.tern-port
+.serverless/
+.fusebox/
+.dynamodb/
+
+# Neurality Specific
+neurality_runtime.db
+instance/

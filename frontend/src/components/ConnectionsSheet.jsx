@@ -22,7 +22,7 @@ export default function ConnectionsSheet({ open, title, users, loading, onClose 
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-4 py-4">
+        <div className="flex-1 overflow-y-auto custom-scrollbar px-4 py-4 pr-2">
           {loading ? (
             <div className="rounded-[24px] bg-white/72 px-4 py-4 text-sm text-[color:var(--muted)]">
               Loading {title.toLowerCase()}...

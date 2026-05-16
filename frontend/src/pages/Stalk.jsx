@@ -1,11 +1,14 @@
 import { useEffect, useState } from "react";
 import { Search } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 import Avatar from "../components/Avatar";
 import { getErrorMessage, userApi } from "../services/api";
 
 
 export default function Stalk() {
+  const navigate = useNavigate();
+
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -51,7 +54,7 @@ export default function Stalk() {
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              className="w-full bg-transparent text-sm"
+              className="w-full bg-transparent text-sm focus:outline-none"
               placeholder="Stalk someone by username or full name"
             />
           </div>
@@ -62,15 +65,20 @@ export default function Stalk() {
 
         <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
           {results.map((person) => (
-            <article key={person.id} className="panel px-5 py-6 text-center">
-              <div className="mx-auto w-fit rounded-full border-2 border-[color:var(--accent)]/40 p-1">
+            <button
+              key={person.id}
+              type="button"
+              onClick={() => navigate(`/profile/${person.id}`)}
+              className="panel group overflow-hidden px-5 py-6 text-center transition-all duration-300 hover:-translate-y-1 hover:bg-white hover:shadow-soft active:scale-[0.98]"
+            >
+              <div className="mx-auto w-fit rounded-full border-2 border-[color:var(--accent)]/40 p-1 transition-colors group-hover:border-[color:var(--accent)]">
                 <Avatar src={person.profile_pic} name={person.username} size="lg" />
               </div>
               <p className="mt-4 text-lg font-semibold text-[color:var(--accent)]">@{person.username}</p>
               <p className="mt-2 text-sm text-[color:var(--muted)]">
-                {person.posts_count} drops | {person.followers_count} followers
+                {person.posts_count} posts | {person.followers_count} followers
               </p>
-            </article>
+            </button>
           ))}
         </div>
       </section>

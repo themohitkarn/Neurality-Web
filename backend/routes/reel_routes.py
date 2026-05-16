@@ -17,6 +17,11 @@ reel_bp = Blueprint("reels", __name__)
 def upload_reel():
     caption = (request.form.get("caption") or "").strip()
     video = request.files.get("video")
+    is_muted = request.form.get("is_muted") == "true"
+    aspect_ratio = request.form.get("aspect_ratio") or "9:16"
+    width = request.form.get("width")
+    height = request.form.get("height")
+    orientation = request.form.get("orientation") or "portrait"
 
     if not video or not video.filename:
         return jsonify({"message": "A video file is required for reels."}), 400
@@ -31,6 +36,11 @@ def upload_reel():
             user_id=g.current_user.id,
             video_path=processed_assets["video_path"],
             thumbnail_path=processed_assets["thumbnail_path"],
+            width=int(width) if width else None,
+            height=int(height) if height else None,
+            aspect_ratio=aspect_ratio,
+            orientation=orientation,
+            is_muted=is_muted,
             caption=caption or None,
         )
         db.session.add(reel)
@@ -78,6 +88,8 @@ def get_reel_feed():
 @reel_bp.post("/like/<int:reel_id>")
 @token_required
 def toggle_reel_like(reel_id):
+    from routes.notification_routes import create_notification
+
     reel = db.session.get(Reel, reel_id)
     if not reel:
         return jsonify({"message": "Reel not found."}), 404
@@ -91,6 +103,13 @@ def toggle_reel_like(reel_id):
         g.current_user.liked_reels.append(reel)
         liked = True
         message = "Reel liked."
+        create_notification(
+            user_id=reel.user_id,
+            actor_id=g.current_user.id,
+            type_="reel_like",
+            target_type="reel",
+            target_id=reel.id,
+        )
 
     db.session.commit()
 
@@ -101,3 +120,69 @@ def toggle_reel_like(reel_id):
             "likes_count": reel.liked_by.count(),
         }
     )
+
+
+@reel_bp.post("/repost/<int:reel_id>")
+@token_required
+def toggle_reel_repost(reel_id):
+    from routes.notification_routes import create_notification
+
+    reel = db.session.get(Reel, reel_id)
+    if not reel:
+        return jsonify({"message": "Reel not found."}), 404
+
+    existing_repost = g.current_user.reposted_reels.filter(Reel.id == reel.id).first()
+    if existing_repost:
+        g.current_user.reposted_reels.remove(reel)
+        reposted = False
+        message = "Reel removed from reposts."
+    else:
+        g.current_user.reposted_reels.append(reel)
+        reposted = True
+        message = "Reel reposted."
+        create_notification(
+            user_id=reel.user_id,
+            actor_id=g.current_user.id,
+            type_="repost",
+            target_type="reel",
+            target_id=reel.id,
+        )
+
+    db.session.commit()
+
+    return jsonify(
+        {
+            "message": message,
+            "reposted": reposted,
+            "reposts_count": reel.reposted_by.count(),
+        }
+    )
+
+
+@reel_bp.post("/save/<int:reel_id>")
+@token_required
+def toggle_reel_save(reel_id):
+    from models.social import SavedPost
+    reel = db.session.get(Reel, reel_id)
+    if not reel:
+        return jsonify({"message": "Reel not found."}), 404
+
+    existing = SavedPost.query.filter_by(user_id=g.current_user.id, reel_id=reel_id).first()
+    if existing:
+        db.session.delete(existing)
+        db.session.commit()
+        return jsonify({"message": "Reel unsaved.", "saved": False})
+    else:
+        saved = SavedPost(user_id=g.current_user.id, reel_id=reel_id)
+        db.session.add(saved)
+        db.session.commit()
+        return jsonify({"message": "Reel saved.", "saved": True})
+
+
+@reel_bp.get("/<int:reel_id>")
+@token_required
+def get_reel(reel_id):
+    reel = db.session.get(Reel, reel_id)
+    if not reel:
+        return jsonify({"message": "Reel not found."}), 404
+    return jsonify({"reel": reel.to_dict(current_user_id=g.current_user.id)})

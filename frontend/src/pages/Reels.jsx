@@ -3,8 +3,9 @@ import { Clapperboard, Upload } from "lucide-react";
 
 import EmptyState from "../components/EmptyState";
 import ReelCard from "../components/ReelCard";
+import StoryCreator from "../components/StoryCreator";
 import { useAuth } from "../context/AuthContext";
-import { getErrorMessage, reelApi } from "../services/api";
+import { getErrorMessage, reelApi, storyApi } from "../services/api";
 
 
 export default function Reels() {
@@ -15,6 +16,9 @@ export default function Reels() {
   const [selectedVideo, setSelectedVideo] = useState(null);
   const [caption, setCaption] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [isStoryOpen, setIsStoryOpen] = useState(false);
+  const [sharedContent, setSharedContent] = useState(null);
+
   const autoplayEnabled = user?.settings?.autoplay_reels !== false;
 
   useEffect(() => {
@@ -62,9 +66,7 @@ export default function Reels() {
 
   const handleToggleLike = async (reelId) => {
     const target = reels.find((item) => item.id === reelId);
-    if (!target) {
-      return;
-    }
+    if (!target) return;
 
     const optimistic = !target.is_liked;
     setReels((current) =>
@@ -108,8 +110,29 @@ export default function Reels() {
     }
   };
 
+  const handleAddStory = (content) => {
+    setSharedContent(content);
+    setIsStoryOpen(true);
+  };
+
+  const handlePublishStory = async (formData) => {
+    try {
+      await storyApi.create(formData);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to publish story");
+    }
+  };
+
   return (
     <main className="mx-auto grid max-w-[1440px] gap-6 px-4 py-6 xl:grid-cols-[320px_minmax(0,820px)]">
+      <StoryCreator 
+        isOpen={isStoryOpen} 
+        onClose={() => { setIsStoryOpen(false); setSharedContent(null); }} 
+        onPublish={handlePublishStory}
+        sharedContent={sharedContent}
+      />
+
       <aside className="space-y-6 xl:sticky xl:top-28 xl:self-start">
         <section className="panel soft-ring px-5 py-6">
           <div className="flex items-center gap-3">
@@ -197,6 +220,7 @@ export default function Reels() {
                   key={reel.id}
                   reel={reel}
                   onToggleLike={handleToggleLike}
+                  onAddStory={handleAddStory}
                   autoplayEnabled={autoplayEnabled}
                 />
               ))}

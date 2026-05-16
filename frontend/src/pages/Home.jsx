@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { RefreshCcw } from "lucide-react";
 
-import FeedNotes from "../components/FeedNotes";
-import FeedStream from "../components/FeedStream";
-import PostComposer from "../components/PostComposer";
-import ProfileStatsPanel from "../components/ProfileStatsPanel";
-import RecommendedPosts from "../components/RecommendedPosts";
+import { Link } from "react-router-dom";
+
+import Avatar from "../components/Avatar";
+import PostCard from "../components/PostCard";
+import PullToRefresh from "../components/PullToRefresh";
+import { SkeletonPostCard, SkeletonStoryBar } from "../components/SkeletonLoader";
 import StoryBar from "../components/StoryBar";
-import StorySidePanel from "../components/StorySidePanel";
+import StoryCreator from "../components/StoryCreator";
 import StoryViewer from "../components/StoryViewer";
 import { useAuth } from "../context/AuthContext";
 import { aiApi, commentApi, getErrorMessage, postApi, storyApi } from "../services/api";
@@ -21,17 +21,10 @@ export default function Home() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasNext, setHasNext] = useState(false);
   const [error, setError] = useState("");
-  const [caption, setCaption] = useState("");
-  const [captionPrompt, setCaptionPrompt] = useState("");
-  const [captionIdeas, setCaptionIdeas] = useState([]);
-  const [captionHashtags, setCaptionHashtags] = useState([]);
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [posting, setPosting] = useState(false);
   const [creatingStory, setCreatingStory] = useState(false);
-  const [generatingCaptions, setGeneratingCaptions] = useState(false);
-  const [recommendedPosts, setRecommendedPosts] = useState([]);
-  const [loadingRecommendations, setLoadingRecommendations] = useState(false);
   const [activeStoryGroup, setActiveStoryGroup] = useState(null);
+  const [isCreatorOpen, setIsCreatorOpen] = useState(false);
+  const [sharedContent, setSharedContent] = useState(null);
 
   const sentinelRef = useRef(null);
   const nextPageRef = useRef(2);
@@ -41,24 +34,37 @@ export default function Home() {
       const { data } = await storyApi.feed();
       setStories(data.stories || []);
     } catch (err) {
-      setError(getErrorMessage(err));
+      console.error("Stories fetch error:", err);
     }
   };
 
-  const fetchFeed = async (pageNumber = 1, replace = false) => {
-    if (pageNumber === 1) {
-      setLoading(true);
-    } else {
-      setLoadingMore(true);
+  const handlePublishStory = async (formData) => {
+    setCreatingStory(true);
+    try {
+      await storyApi.create(formData);
+      await fetchStories();
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setCreatingStory(false);
+      setIsCreatorOpen(false);
+      setSharedContent(null);
     }
+  };
+
+  const handleAddStory = (content) => {
+    setSharedContent(content);
+    setIsCreatorOpen(true);
+  };
+
+  const fetchFeed = async (pageNumber = 1, replace = false) => {
+    if (pageNumber === 1) setLoading(true);
+    else setLoadingMore(true);
 
     try {
       const { data } = await postApi.feed(pageNumber);
       setPosts((current) => {
-        if (replace) {
-          return data.posts;
-        }
-
+        if (replace) return data.posts;
         const existingIds = new Set(current.map((item) => item.id));
         return [...current, ...data.posts.filter((item) => !existingIds.has(item.id))];
       });
@@ -73,171 +79,54 @@ export default function Home() {
     }
   };
 
-  const fetchRecommendations = async () => {
-    setLoadingRecommendations(true);
-    try {
-      const { data } = await postApi.recommended();
-      setRecommendedPosts(data.posts || []);
-    } catch (_err) {
-      setRecommendedPosts([]);
-    } finally {
-      setLoadingRecommendations(false);
-    }
-  };
-
-  const refreshWorkspace = async () => {
-    await Promise.all([fetchFeed(1, true), fetchStories(), fetchRecommendations()]);
+  const refreshAll = async () => {
+    await Promise.all([fetchFeed(1, true), fetchStories()]);
   };
 
   useEffect(() => {
-    refreshWorkspace();
+    refreshAll();
   }, []);
 
+  /* Infinite scroll */
   useEffect(() => {
-    if (!sentinelRef.current || !hasNext) {
-      return undefined;
-    }
-
+    if (!sentinelRef.current || !hasNext) return undefined;
     const observer = new IntersectionObserver(
       (entries) => {
-        const entry = entries[0];
-        if (entry.isIntersecting && !loading && !loadingMore) {
+        if (entries[0].isIntersecting && !loading && !loadingMore) {
           fetchFeed(nextPageRef.current, false);
         }
       },
       { threshold: 0.2 },
     );
-
     observer.observe(sentinelRef.current);
     return () => observer.disconnect();
   }, [hasNext, loading, loadingMore]);
 
-  const handleCreatePost = async (event) => {
-    event.preventDefault();
-    if (!selectedFile) {
-      setError("Choose an image before dropping.");
-      return;
-    }
 
-    setPosting(true);
-    setError("");
-
-    try {
-      const payload = new FormData();
-      payload.append("caption", caption);
-      payload.append("image", selectedFile);
-
-      const { data } = await postApi.create(payload);
-      setPosts((current) => [data.post, ...current]);
-      setCaption("");
-      setCaptionPrompt("");
-      setCaptionIdeas([]);
-      setCaptionHashtags([]);
-      setSelectedFile(null);
-      setUser((current) =>
-        current
-          ? {
-              ...current,
-              posts_count: (current.posts_count || 0) + 1,
-            }
-          : current,
-      );
-      fetchRecommendations();
-    } catch (err) {
-      setError(getErrorMessage(err));
-    } finally {
-      setPosting(false);
-    }
-  };
-
-  const handleCreateStory = async (file) => {
-    setCreatingStory(true);
-    setError("");
-
-    try {
-      const payload = new FormData();
-      payload.append("image", file);
-      await storyApi.create(payload);
-      await fetchStories();
-    } catch (err) {
-      setError(getErrorMessage(err));
-    } finally {
-      setCreatingStory(false);
-    }
-  };
-
-  const handleGenerateCaptions = async () => {
-    if (!captionPrompt.trim() && !selectedFile) {
-      setError("Add a short prompt or choose an image before generating AI captions.");
-      return;
-    }
-
-    setGeneratingCaptions(true);
-    setError("");
-
-    try {
-      const payload = new FormData();
-      if (captionPrompt.trim()) {
-        payload.append("prompt", captionPrompt.trim());
-      }
-      if (selectedFile) {
-        payload.append("image", selectedFile);
-      }
-
-      const { data } = await aiApi.generateCaption(payload);
-      setCaptionIdeas(data.captions || []);
-      setCaptionHashtags(data.hashtags || []);
-    } catch (err) {
-      setError(getErrorMessage(err));
-    } finally {
-      setGeneratingCaptions(false);
-    }
-  };
 
   const handleToggleLike = async (postId) => {
-    const target = posts.find((post) => post.id === postId);
-    if (!target) {
-      return;
-    }
-
+    const target = posts.find((p) => p.id === postId);
+    if (!target) return;
     const optimistic = !target.is_liked;
     setPosts((current) =>
-      current.map((post) =>
-        post.id === postId
-          ? {
-              ...post,
-              is_liked: optimistic,
-              likes_count: post.likes_count + (optimistic ? 1 : -1),
-            }
-          : post,
+      current.map((p) =>
+        p.id === postId
+          ? { ...p, is_liked: optimistic, likes_count: p.likes_count + (optimistic ? 1 : -1) }
+          : p,
       ),
     );
-
     try {
       const { data } = await postApi.toggleLike(postId);
       setPosts((current) =>
-        current.map((post) =>
-          post.id === postId
-            ? {
-                ...post,
-                is_liked: data.liked,
-                likes_count: data.likes_count,
-              }
-            : post,
+        current.map((p) =>
+          p.id === postId ? { ...p, is_liked: data.liked, likes_count: data.likes_count } : p,
         ),
       );
-      fetchRecommendations();
     } catch (err) {
       setError(getErrorMessage(err));
       setPosts((current) =>
-        current.map((post) =>
-          post.id === postId
-            ? {
-                ...post,
-                is_liked: target.is_liked,
-                likes_count: target.likes_count,
-              }
-            : post,
+        current.map((p) =>
+          p.id === postId ? { ...p, is_liked: target.is_liked, likes_count: target.likes_count } : p,
         ),
       );
     }
@@ -247,17 +136,12 @@ export default function Home() {
     try {
       const { data } = await commentApi.add({ post_id: postId, content });
       setPosts((current) =>
-        current.map((post) =>
-          post.id === postId
-            ? {
-                ...post,
-                comments: [...post.comments, data.comment],
-                comments_count: post.comments_count + 1,
-              }
-            : post,
+        current.map((p) =>
+          p.id === postId
+            ? { ...p, comments: [...p.comments, data.comment], comments_count: p.comments_count + 1 }
+            : p,
         ),
       );
-      fetchRecommendations();
       return true;
     } catch (err) {
       setError(getErrorMessage(err));
@@ -269,14 +153,14 @@ export default function Home() {
     try {
       await commentApi.remove(commentId);
       setPosts((current) =>
-        current.map((post) =>
-          post.id === postId
+        current.map((p) =>
+          p.id === postId
             ? {
-                ...post,
-                comments: post.comments.filter((comment) => comment.id !== commentId),
-                comments_count: Math.max(post.comments_count - 1, 0),
+                ...p,
+                comments: p.comments.filter((c) => c.id !== commentId),
+                comments_count: Math.max(p.comments_count - 1, 0),
               }
-            : post,
+            : p,
         ),
       );
     } catch (err) {
@@ -284,127 +168,148 @@ export default function Home() {
     }
   };
 
-  const composerProps = {
-    caption,
-    setCaption,
-    captionPrompt,
-    setCaptionPrompt,
-    captionIdeas,
-    captionHashtags,
-    selectedFile,
-    setSelectedFile,
-    generatingCaptions,
-    posting,
-    onGenerateCaptions: handleGenerateCaptions,
-    onApplyCaptionSuggestion: setCaption,
-    onAppendHashtags: () => {
-      const hashtagLine = captionHashtags.join(" ");
-      if (!hashtagLine) {
-        return;
-      }
-
-      setCaption((current) => {
-        if (current.includes(hashtagLine)) {
-          return current;
-        }
-        return current.trim() ? `${current.trim()}\n\n${hashtagLine}` : hashtagLine;
-      });
-    },
-    onSubmit: handleCreatePost,
-  };
-
-  const feedProps = {
-    loading,
-    posts,
-    loadingMore,
-    hasNext,
-    sentinelRef,
-    onToggleLike: handleToggleLike,
-    onAddComment: handleAddComment,
-    onDeleteComment: handleDeleteComment,
-  };
-
   return (
-    <>
-      <main className="mx-auto max-w-[1440px] px-4 py-4 lg:py-6">
-        <section className="space-y-5 lg:hidden">
-          <div className="panel soft-ring overflow-hidden px-5 py-6">
-            <div className="flex items-end justify-between gap-4">
-              <div>
-                <p className="text-xs uppercase tracking-[0.28em] text-[color:var(--accent)]">
-                  Mobile stream
-                </p>
-                <p className="mt-2 font-display text-3xl text-ink">Today&apos;s flow</p>
-                <p className="mt-2 text-sm leading-6 text-[color:var(--muted)]">
-                  Fast drops, story updates, and recommendations tuned for the phone experience.
-                </p>
+    <div className="h-full w-full overflow-y-auto overflow-x-hidden box-border bg-[color:var(--bg)] custom-scrollbar">
+      <PullToRefresh onRefresh={refreshAll}>
+        <div className="w-full max-w-[850px] mx-auto flex justify-center lg:justify-between pt-0 lg:pt-8 px-0 lg:px-4 xl:max-w-[950px] xl:gap-8">
+          {/* Feed Column */}
+          <div className="w-full max-w-[470px] flex-shrink-0 flex flex-col">
+            {/* Stories */}
+            {loading ? (
+              <SkeletonStoryBar />
+            ) : (
+              <div className="border-b border-[color:var(--border)] max-w-[470px] mx-auto w-full sm:border sm:rounded-xl sm:bg-[color:var(--bg-card)] sm:mb-6 sm:overflow-hidden">
+                <StoryBar
+                  stories={stories}
+                  onOpenCreator={() => setIsCreatorOpen(true)}
+                  creatingStory={creatingStory}
+                  onOpenStory={setActiveStoryGroup}
+                />
               </div>
-              <button type="button" onClick={refreshWorkspace} className="ghost-button gap-2">
-                <RefreshCcw size={16} />
-                Refresh
-              </button>
+            )}
+
+            {/* Error */}
+            {error ? (
+              <div className="mx-auto max-w-[470px] mt-3 rounded-xl px-4 py-3 text-sm text-red-400" style={{ background: "rgba(239,68,68,0.1)" }}>
+                {error}
+              </div>
+            ) : null}
+
+            {/* Feed */}
+            <div className="pb-safe sm:pt-0 pt-4">
+              {loading ? (
+                <div className="space-y-4 p-4 max-w-[470px] mx-auto w-full">
+                  <SkeletonPostCard />
+                  <SkeletonPostCard />
+                </div>
+              ) : posts.length === 0 ? (
+                <div className="flex flex-col items-center justify-center px-8 py-20 text-center max-w-[470px] mx-auto">
+                  <p className="text-lg font-semibold" style={{ color: "var(--text-primary)" }}>Welcome to Neurality</p>
+                  <p className="mt-2 text-sm" style={{ color: "var(--text-muted)" }}>
+                    Follow people to see their posts here, or create your first post.
+                  </p>
+                </div>
+              ) : (
+                <div className="flex flex-col w-full items-center">
+                  {posts.map((post) => (
+                    <PostCard
+                      key={post.id}
+                      post={post}
+                      currentUser={user}
+                      onToggleLike={handleToggleLike}
+                      onAddComment={handleAddComment}
+                      onDeleteComment={handleDeleteComment}
+                      onAddStory={handleAddStory}
+                    />
+                  ))}
+
+                  {/* Infinite scroll sentinel */}
+                  {hasNext ? (
+                    <div ref={sentinelRef} className="flex items-center justify-center py-8 w-full">
+                      <div
+                        className="h-6 w-6 rounded-full border-2 border-t-transparent animate-spin"
+                        style={{ borderColor: "var(--text-muted)", borderTopColor: "transparent" }}
+                      />
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center py-12 text-center w-full">
+                      <p className="text-sm font-medium" style={{ color: "var(--text-muted)" }}>
+                        You're all caught up ✓
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
-          <StoryBar
-            stories={stories}
-            onCreateStory={handleCreateStory}
-            creatingStory={creatingStory}
-            onOpenStory={setActiveStoryGroup}
-          />
+          {/* Right Sidebar Column */}
+          <div className="hidden lg:block w-[320px] flex-shrink-0 relative">
+            <div className="sticky top-8 flex flex-col gap-6 w-full">
+              {/* User Profile Mini */}
+              {user && (
+                <div className="flex items-center justify-between">
+                  <Link to={`/profile/${user.id}`} className="flex items-center gap-3">
+                    <Avatar src={user.profile_pic} name={user.username} size="md" />
+                    <div className="flex flex-col">
+                      <span className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{user.username}</span>
+                      <span className="text-sm" style={{ color: "var(--text-muted)" }}>{user.full_name || "Neurality"}</span>
+                    </div>
+                  </Link>
+                  <button className="text-xs font-semibold text-blue-500 hover:text-blue-400 transition-colors">Switch</button>
+                </div>
+              )}
 
-          <ProfileStatsPanel user={user} compact />
+              {/* Suggestions */}
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <span className="text-sm font-semibold" style={{ color: "var(--text-muted)" }}>Suggested for you</span>
+                  <Link to="/explore" className="text-xs font-semibold hover:text-[color:var(--text-secondary)]" style={{ color: "var(--text-primary)" }}>See All</Link>
+                </div>
+                <div className="flex flex-col gap-4">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-[color:var(--surface)] animate-pulse" />
+                        <div className="flex flex-col gap-1.5">
+                          <div className="w-20 h-2.5 bg-[color:var(--surface-active)] rounded animate-pulse" />
+                          <div className="w-14 h-2 bg-[color:var(--surface)] rounded animate-pulse" />
+                        </div>
+                      </div>
+                      <button className="text-xs font-semibold text-blue-500 hover:text-blue-400 transition-colors">Follow</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
 
-          {error ? (
-            <div className="rounded-[24px] bg-red-50 px-5 py-4 text-sm text-red-500">{error}</div>
-          ) : null}
+              {/* Footer links */}
+              <div className="mt-4 flex flex-wrap gap-x-2 gap-y-1 text-[11px]" style={{ color: "var(--text-muted)" }}>
+                <span>About</span><span>•</span><span>Help</span><span>•</span><span>API</span><span>•</span><span>Privacy</span><span>•</span><span>Terms</span>
+              </div>
+              <div className="mt-2 text-[11px] uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+                © 2026 Neurality
+              </div>
+            </div>
+          </div>
+        </div>
+      </PullToRefresh>
 
-          <PostComposer {...composerProps} compact />
-          <RecommendedPosts posts={recommendedPosts} loading={loadingRecommendations} />
-          <section className="space-y-5">
-            <FeedStream {...feedProps} />
-          </section>
-        </section>
-
-        <section className="hidden gap-6 lg:grid xl:grid-cols-[360px_minmax(0,1fr)_320px]">
-          <aside className="space-y-6 xl:sticky xl:top-28 xl:self-start">
-            <PostComposer {...composerProps} />
-            <ProfileStatsPanel user={user} />
-          </aside>
-
-          <section className="space-y-6">
-            <StoryBar
-              stories={stories}
-              onCreateStory={handleCreateStory}
-              creatingStory={creatingStory}
-              onOpenStory={setActiveStoryGroup}
-            />
-
-            {error ? (
-              <div className="rounded-[24px] bg-red-50 px-5 py-4 text-sm text-red-500">{error}</div>
-            ) : null}
-
-            <FeedStream {...feedProps} />
-          </section>
-
-          <aside className="space-y-6 xl:sticky xl:top-28 xl:self-start">
-            <StorySidePanel
-              stories={stories}
-              onCreateStory={handleCreateStory}
-              creatingStory={creatingStory}
-              onOpenStory={setActiveStoryGroup}
-            />
-            <RecommendedPosts posts={recommendedPosts} loading={loadingRecommendations} />
-            <FeedNotes postsCount={posts.length} storiesCount={stories.length} onRefresh={refreshWorkspace} />
-          </aside>
-        </section>
-      </main>
-
+      {/* Story viewer */}
       <StoryViewer
         group={activeStoryGroup}
         open={Boolean(activeStoryGroup)}
         onClose={() => setActiveStoryGroup(null)}
+        allGroups={stories}
+        onNextGroup={setActiveStoryGroup}
       />
-    </>
+
+      {/* Story creator */}
+      <StoryCreator
+        isOpen={isCreatorOpen}
+        onClose={() => { setIsCreatorOpen(false); setSharedContent(null); }}
+        onPublish={handlePublishStory}
+        sharedContent={sharedContent}
+      />
+    </div>
   );
 }

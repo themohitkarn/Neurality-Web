@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Neurality</string>
+    <string name="title_activity_main">Neurality</string>
+    <string name="package_name">com.neurality.app</string>
+    <string name="custom_url_scheme">com.neurality.app</string>
+</resources>

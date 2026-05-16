@@ -10,8 +10,8 @@ class Config:
     JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", SECRET_KEY)
     SQLALCHEMY_DATABASE_URI = os.getenv(
         "DATABASE_URL",
-        "mysql+pymysql://root:password@localhost:3306/neurality",
-    )
+        "postgresql://postgres:password@localhost:5432/neurality_main",
+    ).replace("postgres://", "postgresql://", 1) # Support Heroku/Neon styles
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     MAX_CONTENT_LENGTH = int(os.getenv("MAX_CONTENT_LENGTH_MB", "150")) * 1024 * 1024
     JWT_EXPIRES_IN_DAYS = int(os.getenv("JWT_EXPIRES_IN_DAYS", "7"))

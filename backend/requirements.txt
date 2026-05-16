@@ -8,3 +8,8 @@ PyMySQL==1.1.1
 python-dotenv==1.0.1
 scikit-learn==1.7.0
 simple-websocket==1.1.0
+celery
+redis
+psycopg2-binary
+cloudinary
+removebg

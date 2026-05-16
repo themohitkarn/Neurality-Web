@@ -28,6 +28,17 @@ def add_comment():
 
     comment = Comment(post_id=post.id, user_id=g.current_user.id, content=content)
     db.session.add(comment)
+
+    from routes.notification_routes import create_notification
+    create_notification(
+        user_id=post.user_id,
+        actor_id=g.current_user.id,
+        type_="comment",
+        target_type="post",
+        target_id=post.id,
+        body=content[:100],
+    )
+
     db.session.commit()
 
     return jsonify({"message": "Comment added.", "comment": comment.to_dict(g.current_user.id)}), 201

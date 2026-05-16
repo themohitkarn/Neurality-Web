@@ -250,6 +250,19 @@ def get_settings():
     )
 
 
+@user_bp.post("/fcm-token")
+@token_required
+def register_fcm_token():
+    payload = request.get_json(silent=True) or {}
+    token = payload.get("token")
+    if not token:
+        return jsonify({"message": "Token is required."}), 400
+    
+    g.current_user.fcm_token = token
+    db.session.commit()
+    return jsonify({"message": "Token saved successfully."}), 200
+
+
 @user_bp.put("/settings")
 @token_required
 def update_settings():
@@ -288,6 +301,22 @@ def update_settings():
         payload.get("reduce_data_usage"),
         default=g.current_user.reduce_data_usage,
     )
+
+    # Granular privacy controls
+    allowed_privacy = {"everyone", "followers", "nobody"}
+    allowed_story_privacy = {"everyone", "followers", "close_friends"}
+
+    who_can_comment = (payload.get("who_can_comment") or "").strip().lower()
+    if who_can_comment and who_can_comment in allowed_privacy:
+        g.current_user.who_can_comment = who_can_comment
+
+    who_can_tag = (payload.get("who_can_tag") or "").strip().lower()
+    if who_can_tag and who_can_tag in allowed_privacy:
+        g.current_user.who_can_tag = who_can_tag
+
+    story_privacy = (payload.get("story_privacy") or "").strip().lower()
+    if story_privacy and story_privacy in allowed_story_privacy:
+        g.current_user.story_privacy = story_privacy
 
     try:
         db.session.commit()

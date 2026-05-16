@@ -47,50 +47,55 @@ export default function Signup() {
 
   return (
     <AuthShell
-      eyebrow="Start sharing"
-      title="Build a profile, publish your first photo, and grow a following."
-      description="The signup flow is connected to Flask, MySQL, JWT auth, and secure local media storage so new accounts are production-shaped from the first request."
+      eyebrow="Get started"
+      title="Create your account"
+      description=""
       footerText="Already have an account?"
       footerLink="/login"
       footerLabel="Log in"
     >
       <div>
-        <p className="font-display text-3xl text-ink">Create account</p>
-        <p className="mt-2 text-sm leading-6 text-[color:var(--muted)]">
-          Pick a username, add an optional bio, and upload a profile photo to launch your space.
+        <h1 className="text-2xl font-bold" style={{ color: "var(--text-primary)" }}>Create account</h1>
+        <p className="mt-1.5 text-sm" style={{ color: "var(--text-muted)" }}>
+          Set up your profile and start sharing.
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="mt-8 space-y-4">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label className="mb-2 block text-sm font-medium text-ink">Username</label>
-            <input
-              value={form.username}
-              onChange={(event) => setForm((current) => ({ ...current, username: event.target.value }))}
-              className="field"
-              placeholder="santa"
-              required
-            />
-          </div>
-          <div>
-            <label className="mb-2 block text-sm font-medium text-ink">Email</label>
-            <input
-              value={form.email}
-              onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))}
-              className="field"
-              type="email"
-              placeholder="santa@neurality.dev"
-              required
-            />
-          </div>
+      <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+        <div>
+          <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+            Username
+          </label>
+          <input
+            value={form.username}
+            onChange={(e) => setForm((c) => ({ ...c, username: e.target.value }))}
+            className="field"
+            placeholder="yourname"
+            required
+          />
         </div>
 
         <div>
-          <label className="mb-2 block text-sm font-medium text-ink">Password</label>
+          <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+            Email
+          </label>
+          <input
+            value={form.email}
+            onChange={(e) => setForm((c) => ({ ...c, email: e.target.value }))}
+            className="field"
+            type="email"
+            placeholder="your@email.com"
+            required
+          />
+        </div>
+
+        <div>
+          <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+            Password
+          </label>
           <input
             value={form.password}
-            onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))}
+            onChange={(e) => setForm((c) => ({ ...c, password: e.target.value }))}
             className="field"
             type="password"
             minLength={6}
@@ -100,39 +105,51 @@ export default function Signup() {
         </div>
 
         <div>
-          <label className="mb-2 block text-sm font-medium text-ink">Bio</label>
+          <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+            Bio
+          </label>
           <textarea
             value={form.bio}
-            onChange={(event) => setForm((current) => ({ ...current, bio: event.target.value }))}
-            className="field min-h-[108px] resize-none"
-            placeholder="What should people know about you?"
+            onChange={(e) => setForm((c) => ({ ...c, bio: e.target.value }))}
+            className="field min-h-[80px] resize-none"
+            placeholder="Tell people about yourself"
             maxLength={255}
           />
         </div>
 
-        <label className="flex cursor-pointer items-center justify-between rounded-[24px] border border-dashed border-[color:var(--line)] bg-white/60 px-4 py-4 transition hover:bg-white/85">
+        <label
+          className="flex cursor-pointer items-center justify-between rounded-xl px-4 py-3.5 transition-colors"
+          style={{
+            background: "var(--surface)",
+            border: "1px dashed var(--border-strong)",
+          }}
+        >
           <div>
-            <p className="text-sm font-medium text-ink">Profile photo</p>
-            <p className="text-xs text-[color:var(--muted)]">
-              {profilePic ? profilePic.name : "Optional. JPG, PNG, WEBP, GIF, or SVG."}
+            <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>Profile photo</p>
+            <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+              {profilePic ? profilePic.name : "Optional"}
             </p>
           </div>
-          <span className="ghost-button gap-2">
-            <ImagePlus size={16} />
+          <span className="btn-secondary text-xs py-2 px-3">
+            <ImagePlus size={14} />
             Select
           </span>
           <input
             type="file"
             accept="image/*"
             className="hidden"
-            onChange={(event) => setProfilePic(event.target.files?.[0] || null)}
+            onChange={(e) => setProfilePic(e.target.files?.[0] || null)}
           />
         </label>
 
-        {error ? <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-500">{error}</p> : null}
+        {error ? (
+          <div className="rounded-xl px-4 py-3 text-sm" style={{ background: "rgba(239,68,68,0.1)", color: "#f87171" }}>
+            {error}
+          </div>
+        ) : null}
 
-        <button type="submit" disabled={submitting} className="accent-button w-full gap-2">
-          {submitting ? "Creating account..." : "Create account"}
+        <button type="submit" disabled={submitting} className="btn-primary w-full">
+          {submitting ? "Creating…" : "Create account"}
           <ArrowRight size={16} />
         </button>
       </form>

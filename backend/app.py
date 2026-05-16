@@ -4,7 +4,7 @@ load_dotenv()
 
 from flask import Flask, jsonify, request
 from werkzeug.exceptions import RequestEntityTooLarge
-from config.cloudinary_config import *
+from cloudinary_config import *
 from routes.upload_routes import upload_bp
 
 from config import Config

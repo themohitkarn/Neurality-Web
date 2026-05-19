@@ -1,14 +1,14 @@
 import { initializeApp } from "firebase/app";
 import { getMessaging, getToken, onMessage } from "firebase/messaging";
 
-// TEMPLATE: User needs to replace these with their own Firebase project credentials
+// TEMPLATE: Loads dynamically from env or falls back to template defaults
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "YOUR_API_KEY",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "YOUR_PROJECT_ID.firebaseapp.com",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "YOUR_PROJECT_ID",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "YOUR_PROJECT_ID.appspot.com",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "YOUR_MESSAGING_SENDER_ID",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "YOUR_APP_ID"
 };
 
 const app = initializeApp(firebaseConfig);
@@ -17,7 +17,7 @@ const messaging = getMessaging(app);
 export const requestForToken = async () => {
   try {
     const currentToken = await getToken(messaging, {
-      vapidKey: "YOUR_PUBLIC_VAPID_KEY",
+      vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY || "YOUR_PUBLIC_VAPID_KEY",
     });
     if (currentToken) {
       console.log("FCM Token:", currentToken);

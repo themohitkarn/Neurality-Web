@@ -1,6 +1,6 @@
 from flask import Blueprint, g, jsonify, request
 
-from extensions import db
+from extensions import db, limiter
 from models.user import User
 from utils.follow_rules import (
     FOLLOW_REQUEST_ACCEPTED,
@@ -131,9 +131,16 @@ def _follow_state_payload(target_user, result):
 
 
 @relationship_bp.post("/follow/<int:user_id>")
+@limiter.limit("30 per minute")
 @token_required
 def follow_user_route(user_id):
     from routes.notification_routes import create_notification
+    from utils.redis_service import RedisService
+
+    # Redis-based Anti-Spam burst detection (limit: max 5 follows in 10 seconds)
+    follow_burst_count = RedisService.increment_spam_counter(g.current_user.id, "follow", window_seconds=10)
+    if follow_burst_count > 5:
+        return jsonify({"message": "Suspicious rapid follow activity detected. Slow down!"}), 429
 
     target_user, error_response = _follow_target_or_404(user_id)
     if error_response:
@@ -161,6 +168,7 @@ def follow_user_route(user_id):
 
 
 @relationship_bp.post("/unfollow/<int:user_id>")
+@limiter.limit("30 per minute")
 @token_required
 def unfollow_user_route(user_id):
     target_user, error_response = _follow_target_or_404(user_id)

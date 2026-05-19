@@ -13,3 +13,7 @@ redis
 psycopg2-binary
 cloudinary
 removebg
+Flask-Limiter==4.1.1
+bleach==6.3.0
+gunicorn==23.0.0
+eventlet==0.36.0

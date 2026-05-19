@@ -3,6 +3,7 @@ from models.follow_request import FollowRequest
 from models.message_request import MessageRequest
 from models.post import Post
 from models.reel import Reel
+from models.reel_view import ReelView
 from models.social import (
     BlockedUser,
     CloseFriend,

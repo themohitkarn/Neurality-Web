@@ -25,7 +25,7 @@ import { useUnread } from "../context/UnreadContext";
 const sidebarNavItemClass = ({ isActive }) =>
   `flex items-center gap-3.5 rounded-xl px-4 py-3 text-sm font-medium transition-all duration-200 ${
     isActive
-      ? "bg-[color:var(--surface-active)] text-[color:var(--text-primary)] font-semibold"
+      ? "bg-[color:var(--surface-active)] text-[color:var(--accent)] font-bold shadow-sm"
       : "text-[color:var(--text-secondary)] hover:bg-[color:var(--surface)]"
   }`;
 
@@ -138,7 +138,7 @@ export default function Navbar({ onLogout }) {
             >
               <Send size={22} strokeWidth={1.8} />
               {totalUnread > 0 && (
-                <span className="badge absolute -top-1 -right-1 bg-red-500">{totalUnread > 9 ? "9+" : totalUnread}</span>
+                <span className="badge absolute -top-1 -right-1">{totalUnread > 9 ? "9+" : totalUnread}</span>
               )}
             </Link>
           </div>
@@ -179,7 +179,7 @@ export default function Navbar({ onLogout }) {
                     </span>
                   )}
                   {item.to === "/chat" && totalUnread > 0 && (
-                    <span className="badge absolute -top-2 -right-2.5 bg-red-500" style={{ fontSize: 9, minWidth: 16, height: 16 }}>
+                    <span className="badge absolute -top-2 -right-2.5" style={{ fontSize: 9, minWidth: 16, height: 16 }}>
                       {totalUnread > 9 ? "9+" : totalUnread}
                     </span>
                   )}

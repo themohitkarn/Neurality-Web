@@ -63,6 +63,7 @@ const AdaptiveMediaRenderer = forwardRef(({
           muted={isMuted}
           loop
           playsInline
+          preload="auto"
           onLoadedData={() => setIsLoaded(true)}
         />
       ) : (

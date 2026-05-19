@@ -3,7 +3,7 @@ import re
 from flask import Blueprint, g, jsonify, request
 from sqlalchemy import func, or_
 
-from extensions import db
+from extensions import db, limiter
 from models.user import User
 from utils.image_handler import delete_image, save_uploaded_image
 from utils.jwt_helper import generate_token, token_required
@@ -19,6 +19,7 @@ def _get_payload():
 
 
 @auth_bp.post("/signup")
+@limiter.limit("5 per minute")
 def signup():
     payload = _get_payload()
     username = (payload.get("username") or "").strip()
@@ -76,6 +77,7 @@ def signup():
 
 
 @auth_bp.post("/login")
+@limiter.limit("5 per minute")
 def login():
     payload = _get_payload()
     identifier = (payload.get("identifier") or payload.get("email") or "").strip()

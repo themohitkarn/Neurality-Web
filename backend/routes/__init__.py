@@ -12,6 +12,7 @@ from routes.social_routes import social_bp
 from routes.story_routes import story_bp
 from routes.user_routes import user_bp
 from routes.share_routes import share_bp
+from routes.system_routes import system_bp
 
 
 __all__ = [
@@ -30,4 +31,5 @@ __all__ = [
     "highlight_bp",
     "share_bp",
     "chat_request_bp",
+    "system_bp",
 ]

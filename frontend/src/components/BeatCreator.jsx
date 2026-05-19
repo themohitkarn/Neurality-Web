@@ -15,6 +15,7 @@ export default function BeatCreator({ isOpen, onClose, onPublished }) {
   const [aspectRatio, setAspectRatio] = useState("9:16");
   const [mediaMeta, setMediaMeta] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
   const [error, setError] = useState("");
   const fileInputRef = useRef(null);
@@ -32,18 +33,6 @@ export default function BeatCreator({ isOpen, onClose, onPublished }) {
     };
   }, [isOpen, pausePlayback, resumePlayback]);
 
-  // Handle preview video playback
-  useEffect(() => {
-    const video = previewVideoRef.current;
-    if (!video) return;
-
-    if (isPlaybackEnabled) {
-      video.play().catch(() => {});
-    } else {
-      video.pause();
-    }
-  }, [isPlaybackEnabled, videoPreview]);
-
   const handleFileChange = async (e) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -51,8 +40,13 @@ export default function BeatCreator({ isOpen, onClose, onPublished }) {
         setError("Please select a valid video file.");
         return;
       }
+      
+      // Cleanup old preview
+      if (videoPreview) URL.revokeObjectURL(videoPreview);
+      
       setSelectedVideo(file);
-      setVideoPreview(URL.createObjectURL(file));
+      const url = URL.createObjectURL(file);
+      setVideoPreview(url);
       setError("");
 
       try {
@@ -68,6 +62,7 @@ export default function BeatCreator({ isOpen, onClose, onPublished }) {
   const handlePublish = async () => {
     if (!selectedVideo) return;
     setUploading(true);
+    setUploadProgress(0);
     setError("");
 
     try {
@@ -83,7 +78,10 @@ export default function BeatCreator({ isOpen, onClose, onPublished }) {
         formData.append("orientation", mediaMeta.orientation);
       }
 
-      const { data } = await reelApi.upload(formData);
+      const { data } = await reelApi.upload(formData, (progress) => {
+        setUploadProgress(progress);
+      });
+      
       onPublished && onPublished(data.reel);
       handleClose();
     } catch (err) {
@@ -94,10 +92,12 @@ export default function BeatCreator({ isOpen, onClose, onPublished }) {
   };
 
   const handleClose = () => {
+    if (videoPreview) URL.revokeObjectURL(videoPreview);
     setSelectedVideo(null);
     setVideoPreview(null);
     setCaption("");
     setError("");
+    setUploadProgress(0);
     onClose();
   };
 
@@ -110,9 +110,20 @@ export default function BeatCreator({ isOpen, onClose, onPublished }) {
           exit={{ opacity: 0 }}
           className="fixed inset-0 z-[100] flex flex-col bg-black text-white"
         >
+          {/* Progress Bar */}
+          {uploading && (
+            <div className="absolute top-0 left-0 right-0 h-1 z-[110] bg-white/10">
+              <motion.div 
+                className="h-full bg-[color:var(--accent)]"
+                initial={{ width: 0 }}
+                animate={{ width: `${uploadProgress}%` }}
+              />
+            </div>
+          )}
+
           {/* Header */}
           <div className="flex items-center justify-between p-4 border-b border-white/10">
-            <button onClick={handleClose} className="p-2 hover:bg-white/10 rounded-full transition-colors">
+            <button onClick={handleClose} disabled={uploading} className="p-2 hover:bg-white/10 rounded-full transition-colors disabled:opacity-30">
               <X size={24} />
             </button>
             <h2 className="text-lg font-bold">New Beat</h2>
@@ -121,7 +132,7 @@ export default function BeatCreator({ isOpen, onClose, onPublished }) {
               disabled={!selectedVideo || uploading}
               className="px-6 py-2 bg-[color:var(--accent)] rounded-full font-bold text-sm disabled:opacity-50 disabled:grayscale transition-all hover:scale-105"
             >
-              {uploading ? "Publishing..." : "Share"}
+              {uploading ? `${uploadProgress}%` : "Share"}
             </button>
           </div>
 

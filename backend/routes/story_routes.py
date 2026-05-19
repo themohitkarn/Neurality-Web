@@ -21,7 +21,8 @@ story_bp = Blueprint("stories", __name__)
 def create_story():
     image = request.files.get("image")
     media_type = request.form.get("media_type", "image")
-    caption = request.form.get("caption", "")
+    import bleach
+    caption = bleach.clean(request.form.get("caption", ""))
     music = request.form.get("music") # Should be JSON string
     text_style = request.form.get("text_style") # Should be JSON string
 

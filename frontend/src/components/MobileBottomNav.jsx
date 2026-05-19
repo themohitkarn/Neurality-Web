@@ -39,7 +39,7 @@ export default function MobileBottomNav() {
                   item.isCreate
                     ? ""
                     : isActive
-                      ? "text-[color:var(--text-primary)]"
+                      ? "text-[color:var(--accent)] font-semibold"
                       : "text-[color:var(--text-muted)]"
                 }`
               }
@@ -76,7 +76,7 @@ export default function MobileBottomNav() {
           onClick={() => hapticLight()}
           className={({ isActive }) =>
             `flex flex-col items-center justify-center gap-0.5 rounded-xl py-1 transition-all duration-200 active:scale-90 ${
-              isActive ? "text-[color:var(--text-primary)]" : "text-[color:var(--text-muted)]"
+              isActive ? "text-[color:var(--accent)] font-semibold" : "text-[color:var(--text-muted)]"
             }`
           }
         >
@@ -85,7 +85,7 @@ export default function MobileBottomNav() {
               <div
                 className="rounded-full overflow-hidden transition-all"
                 style={{
-                  border: isActive ? "2px solid var(--text-primary)" : "2px solid transparent",
+                  border: isActive ? "2px solid var(--accent)" : "2px solid transparent",
                   width: 28,
                   height: 28,
                 }}

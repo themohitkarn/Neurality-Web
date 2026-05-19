@@ -6,30 +6,46 @@ class CommunicationService {
         this.userId = null;
         this.listeners = new Map();
         this.reconnectAttempts = 0;
-        this.maxReconnectAttempts = 5;
+        this.maxReconnectAttempts = 10;
     }
 
     connect(token, userId) {
-        if (this.socket?.connected) return;
+        if (this.socket) {
+            if (this.socket.connected && this.userId === userId) {
+                console.log("[CommSDK] Socket already connected for user:", userId);
+                return;
+            }
+            if (this.userId === userId) {
+                console.log("[CommSDK] Socket exists but disconnected. Calling connect().");
+                this.socket.connect();
+                return;
+            }
+            console.log("[CommSDK] User changed or socket obsolete. Recreating...");
+            this.disconnect();
+        }
 
         this.userId = userId;
         const realtimeUrl = import.meta.env.VITE_REALTIME_URL || "http://localhost:5001";
+        console.log("[CommSDK] Connecting to Realtime Engine:", realtimeUrl);
+        
         this.socket = io(realtimeUrl, {
             auth: { token },
             reconnection: true,
-
             reconnectionAttempts: this.maxReconnectAttempts,
             reconnectionDelay: 1000,
+            reconnectionDelayMax: 5000,
+            randomizationFactor: 0.5,
+            transports: ["websocket", "polling"]
         });
 
         this.setupDefaultListeners();
+        this.reapplyListeners();
     }
 
     setupDefaultListeners() {
         this.socket.on("connect", () => {
             console.log("[CommSDK] Connected to Realtime Engine");
             this.reconnectAttempts = 0;
-            // Recover state
             this.emit("call:recover");
         });
 
@@ -42,25 +58,37 @@ class CommunicationService {
         });
     }
 
+    reapplyListeners() {
+        if (!this.socket) return;
+        this.listeners.forEach((callbacks, event) => {
+            callbacks.forEach(callback => {
+                this.socket.on(event, callback);
+            });
+        });
+    }
+
     on(event, callback) {
         if (!this.listeners.has(event)) {
             this.listeners.set(event, []);
         }
-        this.listeners.get(event).push(callback);
+        const callbacks = this.listeners.get(event);
+        if (callbacks.includes(callback)) return;
+
+        callbacks.push(callback);
         this.socket?.on(event, callback);
     }
 
     off(event, callback) {
-        const eventListeners = this.listeners.get(event);
-        if (eventListeners) {
-            this.listeners.set(event, eventListeners.filter(l => l !== callback));
+        const callbacks = this.listeners.get(event);
+        if (callbacks) {
+            this.listeners.set(event, callbacks.filter(l => l !== callback));
         }
         this.socket?.off(event, callback);
     }
 
     emit(event, data) {
         if (!this.socket?.connected) {
-            console.warn(`[CommSDK] Attempted to emit ${event} while disconnected. Data:`, data);
+            console.warn(`[CommSDK] Attempted to emit ${event} while disconnected.`);
             return;
         }
         this.socket.emit(event, data);
@@ -101,21 +129,19 @@ class CommunicationService {
         this.emit("call:accept", { callerId, signal });
     }
 
-    rejectCall(callerId) {
-        this.emit("call:reject", { callerId });
-    }
-
-    sendSignal(to, signal) {
-        this.emit("call:signal", { to, signal });
-    }
-
-    endCall(to) {
+    closeCall(to) {
         this.emit("call:end", { to });
     }
 
     disconnect() {
-        this.socket?.disconnect();
-        this.socket = null;
+        if (this.socket) {
+            console.log("[CommSDK] Disconnecting socket cleanly.");
+            this.socket.removeAllListeners();
+            this.socket.disconnect();
+            this.socket = null;
+        }
+        this.userId = null;
+        this.listeners.clear();
     }
 }
 

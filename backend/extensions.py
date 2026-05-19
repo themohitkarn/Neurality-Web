@@ -7,9 +7,23 @@ from flask_sqlalchemy import SQLAlchemy
 from celery import Celery
 
 # ── Extension Instances ──
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+
 db = SQLAlchemy()
 bcrypt = Bcrypt()
 cors = CORS()
+
+REDIS_URL = os.environ.get("REDIS_URL")
+
+limiter_kwargs = {
+    "key_func": get_remote_address,
+    "default_limits": ["200 per hour"]
+}
+if REDIS_URL:
+    limiter_kwargs["storage_uri"] = REDIS_URL
+
+limiter = Limiter(**limiter_kwargs)
 
 # ── Redis & Socket.IO Scaling ──
 REDIS_URL = os.environ.get("REDIS_URL")

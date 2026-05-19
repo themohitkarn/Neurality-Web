@@ -15,23 +15,40 @@ export const registerSettingsHandler = (io: Server, socket: AuthenticatedSocket)
     try {
       const { conversationId, key, value } = data;
 
-      // Persist to DB
-      const updateData: any = { [key]: value };
+      // Map frontend keys to DB keys
+      let dbKey = key;
+      if (key === "theme_id") {
+        dbKey = "theme_color";
+      }
+
+      const validDbKeys = ["theme_color", "is_muted", "read_receipts_enabled", "typing_indicators_enabled"];
       
-      await prisma.chat_settings.upsert({
-        where: {
-          user_id_conversation_id: {
+      if (validDbKeys.includes(dbKey)) {
+        const updateData: any = { [dbKey]: value };
+        const existing = await prisma.chat_settings.findFirst({
+          where: {
             user_id: userId,
             conversation_id: conversationId
           }
-        },
-        update: updateData,
-        create: {
-          user_id: userId,
-          conversation_id: conversationId,
-          ...updateData
+        });
+
+        if (existing) {
+          await prisma.chat_settings.update({
+            where: { id: existing.id },
+            data: updateData
+          });
+        } else {
+          await prisma.chat_settings.create({
+            data: {
+              user_id: userId,
+              conversation_id: conversationId,
+              ...updateData
+            }
+          });
         }
-      });
+      } else {
+        console.log(`Skipping database persistence for non-column key: ${key}`);
+      }
 
       // Broadcast to other participants to sync UI
       socket.to(`conversation:${conversationId}`).emit("settings:sync", {
@@ -40,7 +57,7 @@ export const registerSettingsHandler = (io: Server, socket: AuthenticatedSocket)
         value
       });
 
-      socket.emit("success", { message: "Theme updated" });
+      socket.emit("success", { message: "Settings updated" });
     } catch (err) {
       console.error("Settings update error:", err);
       socket.emit("error", { message: "Failed to update settings" });

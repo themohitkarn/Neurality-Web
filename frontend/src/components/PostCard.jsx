@@ -1,10 +1,11 @@
 import { useRef, useState, useEffect } from "react";
-import { Heart, MessageCircle, Send, Bookmark, MoreHorizontal, BadgeCheck, Volume2, VolumeX, Repeat } from "lucide-react";
+import { Heart, MessageCircle, Send, Bookmark, MoreHorizontal, BadgeCheck, Volume2, VolumeX, Repeat, Trash2, EyeOff, Flag, ShieldAlert, Copy } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 
 import Avatar from "./Avatar";
 import ShareSheet from "./ShareSheet";
-import { hapticMedium, hapticLight } from "../utils/capacitor";
+import BottomSheet from "./BottomSheet";
+import { hapticMedium, hapticLight, hapticHeavy } from "../utils/capacitor";
 import { socialApi, postApi } from "../services/api";
 import { useVideoAutoplay } from "../hooks/useVideoAutoplay";
 import AdaptiveMediaRenderer from "./AdaptiveMediaRenderer";
@@ -19,7 +20,89 @@ export default function PostCard({ post, onToggleLike, onAddComment, onDeleteCom
   const [saved, setSaved] = useState(post.is_saved || false);
   const [isMuted, setIsMuted] = useState(post.is_muted !== false);
   const [isShareOpen, setIsShareOpen] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isHidden, setIsHidden] = useState(false);
   const lastTapRef = useRef(0);
+  
+  const isOwner = currentUser && String(post.author.id) === String(currentUser?.id);
+
+  const handleDelete = async () => {
+    if (!window.confirm("Are you sure you want to delete this post?")) return;
+    setIsDeleting(true);
+    hapticHeavy();
+    try {
+      await postApi.delete(post.id);
+      setIsHidden(true); // Hide it locally since we don't have a direct parent remove callback
+      setShowMenu(false);
+    } catch (err) {
+      console.error(err);
+      alert(err.response?.data?.message || "Failed to delete post");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleHide = async () => {
+    try {
+      hapticMedium();
+      await socialApi.hideContent({ post_id: post.id });
+      alert("Marked as 'Not interested'. We'll show you fewer posts like this.");
+      setIsHidden(true);
+      setShowMenu(false);
+    } catch (err) {
+      console.error(err);
+      alert(err.response?.data?.message || "Failed to hide content");
+    }
+  };
+
+  const handleReport = async () => {
+    const reason = window.prompt("Why are you reporting this content?");
+    if (!reason || !reason.trim()) return;
+    try {
+      hapticMedium();
+      await socialApi.report({
+        target_type: "post",
+        target_id: post.id,
+        reason: reason.trim()
+      });
+      alert("Report submitted.");
+      setShowMenu(false);
+    } catch (err) {
+      console.error(err);
+      alert(err.response?.data?.message || "Failed to submit report");
+    }
+  };
+
+  const handleBlock = async () => {
+    if (!window.confirm(`Block @${post.author.username}?`)) return;
+    try {
+      hapticHeavy();
+      await socialApi.toggleBlock(post.author.id);
+      alert(`@${post.author.username} has been blocked.`);
+      setIsHidden(true);
+      setShowMenu(false);
+    } catch (err) {
+      console.error(err);
+      alert(err.response?.data?.message || "Failed to block user");
+    }
+  };
+
+  const menuItems = isOwner ? [
+    { label: "Delete Post", icon: Trash2, danger: true, onClick: handleDelete },
+    { label: "Copy link", icon: Copy, onClick: () => {
+      navigator.clipboard.writeText(`${window.location.origin}/post/${post.id}`);
+      alert("Link copied!");
+    }},
+  ] : [
+    { label: "Not interested", icon: EyeOff, desc: "See fewer posts like this", onClick: handleHide },
+    { label: "Report", icon: Flag, desc: "Report inappropriate content", danger: true, onClick: handleReport },
+    { label: "Block user", icon: ShieldAlert, desc: `Block @${post.author.username}`, danger: true, onClick: handleBlock },
+    { label: "Copy link", icon: Copy, onClick: () => {
+      navigator.clipboard.writeText(`${window.location.origin}/post/${post.id}`);
+      alert("Link copied!");
+    }},
+  ];
   
   const { containerRef, isActive } = useVideoAutoplay(`post-${post.id}`, 0.6);
 
@@ -101,6 +184,8 @@ export default function PostCard({ post, onToggleLike, onAddComment, onDeleteCom
 
   const hasAudio = post.media_type === "video" || post.has_audio || post.music;
 
+  if (isHidden) return null;
+
   return (
     <article ref={containerRef} className="w-full max-w-[470px] mx-auto bg-[color:var(--bg)] sm:bg-[color:var(--bg-card)] sm:border sm:border-[color:var(--border)] sm:rounded-[8px] mb-4 sm:mb-8 overflow-hidden">
       <ShareSheet
@@ -128,7 +213,12 @@ export default function PostCard({ post, onToggleLike, onAddComment, onDeleteCom
             ) : null}
           </div>
         </Link>
-        <button type="button" className="btn-icon" style={{ width: 32, height: 32, background: "transparent" }}>
+        <button 
+          type="button" 
+          onClick={() => { setShowMenu(true); hapticLight(); }}
+          className="btn-icon transition-transform duration-200 active:scale-95" 
+          style={{ width: 32, height: 32, background: "transparent" }}
+        >
           <MoreHorizontal size={20} />
         </button>
       </div>
@@ -359,6 +449,32 @@ export default function PostCard({ post, onToggleLike, onAddComment, onDeleteCom
           </button>
         ) : null}
       </form>
+
+      <BottomSheet open={showMenu} onClose={() => setShowMenu(false)} title="Options">
+        <div className="space-y-1 pb-6 px-2">
+          {menuItems.map((item) => (
+            <button
+              key={item.label}
+              type="button"
+              disabled={isDeleting && item.label === "Delete Post"}
+              onClick={() => { item.onClick?.(); if(item.label !== "Delete Post") setShowMenu(false); hapticLight(); }}
+              className="w-full flex items-center gap-4 rounded-2xl px-4 py-3.5 text-left transition-colors hover:bg-[rgba(255,255,255,0.05)] disabled:opacity-50"
+            >
+              <div className={`p-2.5 rounded-xl bg-[rgba(255,255,255,0.05)] ${item.danger ? "text-red-500" : "text-[color:var(--text-secondary)]"}`}>
+                <item.icon size={20} strokeWidth={1.5} />
+              </div>
+              <div className="flex-1">
+                <p
+                  className={`text-[15px] font-semibold ${item.danger ? "text-red-500" : "text-[color:var(--text-primary)]"}`}
+                >
+                  {isDeleting && item.label === "Delete Post" ? "Deleting..." : item.label}
+                </p>
+                {item.desc && <p className="text-xs text-[color:var(--text-muted)] mt-0.5">{item.desc}</p>}
+              </div>
+            </button>
+          ))}
+        </div>
+      </BottomSheet>
     </article>
   );
 }

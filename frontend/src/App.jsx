@@ -17,6 +17,7 @@ import Explore from "./pages/Explore";
 import Login from "./pages/Login";
 import Notifications from "./pages/Notifications";
 import Profile from "./pages/Profile";
+import EditProfile from "./pages/EditProfile";
 import Beat from "./pages/Beat";
 import Settings from "./pages/Settings";
 import Stalk from "./pages/Stalk";
@@ -106,6 +107,7 @@ export default function App() {
           </Route>
           <Route path="/explore" element={<Explore />} />
           <Route path="/notifications" element={<Notifications />} />
+          <Route path="/profile/edit" element={<EditProfile />} />
           <Route path="/profile/:id" element={<Profile />} />
           <Route path="/drop" element={<Drop />} />
           <Route path="/beat" element={<Beat />} />

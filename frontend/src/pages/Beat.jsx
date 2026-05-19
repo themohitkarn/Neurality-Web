@@ -90,6 +90,31 @@ export default function Beat() {
     }
   }, [beats.length, hasMore, loading, page, fetchBeats]);
 
+  const handleDeleteBeat = async (beatId) => {
+    const target = beats.find((b) => b.id === beatId);
+    if (!target) return;
+
+    // Optimistic removal
+    setBeats((current) => current.filter((b) => b.id !== beatId));
+    
+    try {
+      await reelApi.delete(beatId);
+      // Success - already removed optimistically
+    } catch (err) {
+      setError(getErrorMessage(err));
+      // Revert if failed
+      setBeats((current) => [target, ...current].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)));
+    }
+  };
+
+  const handleHideBeat = (beatId) => {
+    setBeats((current) => current.filter((b) => b.id !== beatId));
+  };
+
+  const handleBlockUser = (authorId) => {
+    setBeats((current) => current.filter((b) => b.author.id !== authorId));
+  };
+
   const handleToggleLike = async (beatId) => {
     const target = beats.find((b) => b.id === beatId);
     if (!target) return;
@@ -194,12 +219,17 @@ export default function Beat() {
           </div>
         )}
 
-        {beats.map((beat) => (
+        {beats.map((beat, index) => (
           <BeatPlayer
             key={beat.id}
             beat={beat}
+            index={index}
+            nextReel={beats[index + 1]}
             onToggleLike={handleToggleLike}
             onAddStory={handleAddStory}
+            onDeleteBeat={handleDeleteBeat}
+            onHideBeat={handleHideBeat}
+            onBlockUser={handleBlockUser}
             currentUser={user}
           />
         ))}

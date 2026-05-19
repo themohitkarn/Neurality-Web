@@ -8,7 +8,7 @@ from cloudinary_config import *
 from routes.upload_routes import upload_bp
 
 from config import Config
-from extensions import bcrypt, cors, db, socketio
+from extensions import bcrypt, cors, db, socketio, limiter
 from flask_cors import CORS
 from models import Comment, FollowRequest, MessageRequest, Post, Story, User
 from routes import (
@@ -27,6 +27,7 @@ from routes import (
     social_bp,
     story_bp,
     user_bp,
+    system_bp,
 )
 
 from utils.image_handler import ensure_upload_structure
@@ -40,10 +41,18 @@ def create_app():
 
     db.init_app(app)
     bcrypt.init_app(app)
+    limiter.init_app(app)
 
     CORS(
         app,
-        resources={r"/api/*": {"origins": app.config.get("CORS_ORIGINS", ["*"])}},
+        resources={
+            r"/api/*": {
+                "origins": [
+                    "http://localhost:5173",
+                    "http://127.0.0.1:5173"
+                    ]
+                }
+            },
         supports_credentials=True,
         allow_headers=["Content-Type", "Authorization", "X-Requested-With"]
     )
@@ -51,7 +60,16 @@ def create_app():
     
 
     @app.before_request
-    def log_request_info():
+    def handle_preflight_and_log():
+        
+        if request.method == "OPTIONS":
+            response = jsonify({"status": "ok"})
+            response.headers.add("Access-Control-Allow-Origin", "http://localhost:5173")
+            response.headers.add("Access-Control-Allow-Headers", "Content-Type,Authorization,X-Requested-With")
+            response.headers.add("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS")
+            response.headers.add("Access-Control-Allow-Credentials", "true")
+            return response, 200
+
         app.logger.info('Headers: %s', request.headers)
         app.logger.info('Body: %s', request.get_data())
 
@@ -81,10 +99,17 @@ def create_app():
     app.register_blueprint(highlight_bp, url_prefix="/api/highlights")
     app.register_blueprint(admin_bp, url_prefix="/api/admin")
     app.register_blueprint(share_bp, url_prefix="/api/share")
+    app.register_blueprint(system_bp, url_prefix="/api/system")
 
     with app.app_context():
-        # Schema is managed by Prisma. No db.create_all() or runtime migrations.
-        pass
+        # Schema is managed by Prisma, but we ensure all tables (including social hidden_contents) are created.
+        db.create_all()
+        try:
+            db.session.execute(db.text("ALTER TABLE users ADD COLUMN IF NOT EXISTS theme_metadata TEXT;"))
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"Error altering table users to add theme_metadata: {e}")
 
     @app.get("/api/health")
     def health_check():

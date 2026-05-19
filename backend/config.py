@@ -13,6 +13,10 @@ class Config:
         "postgresql://postgres:password@localhost:5432/neurality_main",
     ).replace("postgres://", "postgresql://", 1) # Support Heroku/Neon styles
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        "pool_pre_ping": True,
+        "pool_recycle": 300,
+    }
     MAX_CONTENT_LENGTH = int(os.getenv("MAX_CONTENT_LENGTH_MB", "150")) * 1024 * 1024
     JWT_EXPIRES_IN_DAYS = int(os.getenv("JWT_EXPIRES_IN_DAYS", "7"))
     CORS_ORIGINS = [

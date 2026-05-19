@@ -97,8 +97,6 @@ model users {
   group_invites_received    group_invites[] @relation("invite_target")
   group_requests            group_join_requests[]
   rtc_sessions              rtc_participants[]
-  moderation_reviews        moderation_reviews[] @relation("mod_reviewer")
-  moderation_flags          moderation_flags[] @relation("flagged_user")
   created_groups            groups[]           @relation("GroupCreator")
 
   sent_message_requests     message_requests[] @relation("sent_requests")
@@ -801,23 +799,19 @@ model ai_moderation_metadata {
 }
 
 model chat_settings {
-  id                String        @id @default(uuid())
-  user_id           Int
-  conversation_id   String
-  target_user_id    Int?          // For 1:1 specifics (like nicknames)
-  theme_id          String        @default("default")
-  disappearing_timer Int          @default(0) // seconds, 0 = off
-  nickname_peer      String?
-  read_receipts_enabled Boolean    @default(true)
-  typing_indicators_enabled Boolean @default(true)
-  mute_until        DateTime?
-  wallpaper_url     String?
-  created_at        DateTime      @default(now())
-  updated_at        DateTime      @updatedAt
+  id                        String        @id @default(uuid())
+  user_id                   Int
+  conversation_id           String
+  target_user_id            Int?
+  read_receipts_enabled     Boolean       @default(true)
+  typing_indicators_enabled Boolean       @default(true)
+  is_muted                  Boolean       @default(false)
+  theme_color               String?
+  updated_at                DateTime      @default(now()) @updatedAt
 
-  user              users         @relation("chat_user", fields: [user_id], references: [id], onDelete: Cascade)
-  target_user       users?        @relation("chat_target", fields: [target_user_id], references: [id])
-  conversation      conversations @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+  user                      users         @relation("chat_user", fields: [user_id], references: [id], onDelete: Cascade)
+  target_user               users?        @relation("chat_target", fields: [target_user_id], references: [id])
+  conversation              conversations @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
 
   @@unique([user_id, conversation_id])
 }
@@ -898,18 +892,6 @@ model notifications {
 model cached_conversation_snapshots {
   id              String        @id @default(uuid())
   conversation_id String
-  user_id         Int
-  snapshot        Json
-  updated_at      DateTime      @default(now())
-
-  conversation    conversations @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
-}
-  timestamp       DateTime      @default(now())
-}
-
-model cached_conversation_snapshots {
-  id              String        @id @default(uuid())
-  conversation_id String
   last_message    Json?
   member_count    Int
   metadata        Json?
@@ -918,27 +900,6 @@ model cached_conversation_snapshots {
   conversation    conversations @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
 }
 
-
-model messages_legacy {
-  id          Int      @id @default(autoincrement())
-  sender_id   Int
-  receiver_id Int?
-  content     String
-  created_at  DateTime @default(now())
-}
-
-model notifications {
-  id          Int      @id @default(autoincrement())
-  user_id     Int
-  actor_id    Int?
-  type        String   
-  body        String?
-  is_read     Boolean  @default(false)
-  created_at  DateTime @default(now())
-
-  user        users    @relation("notif_user", fields: [user_id], references: [id], onDelete: Cascade)
-  actor       users?   @relation("notif_actor", fields: [actor_id], references: [id])
-}
 
 model reports {
   id           Int       @id @default(autoincrement())
@@ -969,19 +930,6 @@ model call_history {
   conversation    conversations @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
 }
 
-model ai_message_metadata {
-  id         String   @id @default(uuid())
-  message_id String   @unique
-  summary    String?  @db.Text
-  sentiment  String?
-  status     String?
-  moderation String?
-  suggestions String[]
-
-  message    messages @relation(fields: [message_id], references: [id], onDelete: Cascade)
-}
-
-
 model groups {
   id          Int      @id @default(autoincrement())
   creator_id  Int
@@ -991,41 +939,6 @@ model groups {
   created_at  DateTime @default(now())
 
   creator     users    @relation("GroupCreator", fields: [creator_id], references: [id], onDelete: Cascade)
-}
-
-model message_reads {
-  id         String   @id @default(uuid())
-  message_id String
-  user_id    Int
-  read_at    DateTime @default(now())
-
-  message    messages @relation(fields: [message_id], references: [id], onDelete: Cascade)
-  user       users    @relation(fields: [user_id], references: [id], onDelete: Cascade)
-
-  @@unique([message_id, user_id])
-}
-
-model message_reactions {
-  id         String   @id @default(uuid())
-  message_id String
-  user_id    Int
-  emoji      String
-  created_at DateTime @default(now())
-
-  message    messages @relation(fields: [message_id], references: [id], onDelete: Cascade)
-  user       users    @relation(fields: [user_id], references: [id], onDelete: Cascade)
-
-  @@unique([message_id, user_id, emoji])
-}
-
-model message_edits {
-  id          String   @id @default(uuid())
-  message_id  String
-  old_content String   @db.Text
-  new_content String   @db.Text
-  edited_at   DateTime @default(now())
-
-  message     messages @relation(fields: [message_id], references: [id], onDelete: Cascade)
 }
 
 model scheduled_messages {
@@ -1050,31 +963,4 @@ model pinned_messages {
   pinned_at       DateTime      @default(now())
 
   conversation    conversations @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
-}
-
-model chat_settings {
-  id                        String        @id @default(uuid())
-  user_id                   Int
-  target_user_id            Int?
-  conversation_id           String?
-  read_receipts_enabled     Boolean       @default(true)
-  typing_indicators_enabled Boolean       @default(true)
-  is_muted                  Boolean       @default(false)
-  theme_color               String?
-  updated_at                DateTime      @default(now())
-
-  user                      users         @relation("chat_user", fields: [user_id], references: [id], onDelete: Cascade)
-  target_user               users?        @relation("chat_target", fields: [target_user_id], references: [id])
-  conversation              conversations? @relation(fields: [conversation_id], references: [id])
-}
-model message_deletions {
-  id          String   @id @default(uuid())
-  message_id  String
-  user_id     Int
-  deleted_at  DateTime @default(now())
-
-  message     messages @relation(fields: [message_id], references: [id], onDelete: Cascade)
-  user        users    @relation(fields: [user_id], references: [id], onDelete: Cascade)
-
-  @@unique([message_id, user_id])
 }

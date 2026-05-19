@@ -1,4 +1,3 @@
-import imghdr
 from pathlib import Path
 from uuid import uuid4
 
@@ -10,6 +9,25 @@ from werkzeug.utils import secure_filename
 ALLOWED_EXTENSIONS = {"jpg", "jpeg", "png", "gif", "webp", "mp4", "mov", "m4v", "webm", "ogg", "opus", "mp3", "wav"}
 ALLOWED_MIME_PREFIXES = ("image/", "video/", "audio/")
 ALLOWED_IMAGE_TYPES = {"jpeg", "png", "gif", "webp"}
+
+
+def detect_image_type(header_bytes):
+    """Pure Python, zero-dependency helper to detect image magic bytes (Python 3.13+ compatible)."""
+    if len(header_bytes) < 12:
+        return None
+    # JPEG Check
+    if header_bytes[:3] == b"\xff\xd8\xff":
+        return "jpeg"
+    # PNG Check
+    if header_bytes[:8] == b"\x89PNG\r\n\x1a\n":
+        return "png"
+    # GIF Check
+    if header_bytes[:6] in (b"GIF87a", b"GIF89a"):
+        return "gif"
+    # WEBP Check
+    if header_bytes[:4] == b"RIFF" and header_bytes[8:12] == b"WEBP":
+        return "webp"
+    return None
 
 
 def ensure_upload_structure(app=None):
@@ -37,11 +55,11 @@ def save_uploaded_image(file_storage: FileStorage, category="posts"):
     is_video = mimetype.startswith("video/")
     is_audio = mimetype.startswith("audio/")
     
-    # For images, we do extra validation with imghdr
+    # For images, we do extra validation with pure magic byte matching
     if not is_video and not is_audio:
         header_bytes = file_storage.stream.read(512)
         file_storage.stream.seek(0)
-        detected_type = imghdr.what(None, header_bytes)
+        detected_type = detect_image_type(header_bytes)
         if detected_type not in ALLOWED_IMAGE_TYPES:
             raise ValueError("The uploaded file is not a valid image.")
 

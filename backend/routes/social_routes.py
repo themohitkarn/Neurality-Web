@@ -2,7 +2,7 @@ from flask import Blueprint, g, jsonify, request
 
 from extensions import db
 from models.post import Post
-from models.social import BlockedUser, PinnedPost, Report, SavedPost
+from models.social import BlockedUser, PinnedPost, Report, SavedPost, HiddenContent
 from models.user import User
 from utils.jwt_helper import token_required
 
@@ -154,4 +154,44 @@ def create_report():
     db.session.commit()
 
     return jsonify({"message": "Report submitted. We'll review it shortly.", "report_id": report.id}), 201
+
+
+# ─── Hide Content System ───
+
+
+@social_bp.post("/hide")
+@token_required
+def hide_content():
+    try:
+        data = request.get_json(silent=True) or {}
+        post_id = data.get("post_id")
+        reel_id = data.get("reel_id")
+
+        if not post_id and not reel_id:
+            return jsonify({"message": "post_id or reel_id is required."}), 400
+
+        existing = HiddenContent.query.filter_by(
+            user_id=g.current_user.id,
+            post_id=post_id,
+            reel_id=reel_id
+        ).first()
+
+        if existing:
+            return jsonify({"message": "Content is already marked as not interested.", "hidden": True}), 200
+
+        hidden = HiddenContent(
+            user_id=g.current_user.id,
+            post_id=post_id,
+            reel_id=reel_id
+        )
+        db.session.add(hidden)
+        db.session.commit()
+
+        return jsonify({"message": "Marked as not interested. We'll show you fewer posts like this.", "hidden": True}), 201
+    except Exception as exc:
+        db.session.rollback()
+        import traceback
+        traceback.print_exc()
+        return jsonify({"message": f"Unable to hide content: {str(exc)}"}), 500
+
 

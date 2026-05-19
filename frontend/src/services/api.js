@@ -84,16 +84,26 @@ export const postApi = {
   recommended: (limit = 6) => api.get(`/posts/recommended?limit=${limit}`),
   toggleLike: (postId) => api.post(`/posts/like/${postId}`),
   toggleRepost: (postId) => api.post(`/posts/repost/${postId}`),
+  delete: (postId) => api.delete(`/posts/${postId}`),
 };
 
 export const reelApi = {
-  upload: (payload) =>
+  upload: (payload, onProgress) =>
     api.post("/reels/upload", payload, {
       headers: {
         "Content-Type": "multipart/form-data",
       },
+      onUploadProgress: (progressEvent) => {
+        if (onProgress) {
+          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          onProgress(percentCompleted);
+        }
+      },
     }),
   feed: (page = 1, perPage = 8) => api.get(`/reels/feed?page=${page}&per_page=${perPage}`),
+  getUserReels: (userId, page = 1) => api.get(`/reels/user/${userId}?page=${page}`),
+  get: (reelId) => api.get(`/reels/${reelId}`),
+  delete: (reelId) => api.delete(`/reels/${reelId}`),
   toggleLike: (reelId) => api.post(`/reels/like/${reelId}`),
   toggleRepost: (reelId) => api.post(`/reels/repost/${reelId}`),
   toggleSave: (reelId) => api.post(`/reels/save/${reelId}`),
@@ -186,6 +196,7 @@ export const socialApi = {
   toggleBlock: (userId) => api.post(`/social/users/${userId}/block`),
   listBlocked: () => api.get("/social/blocked"),
   report: (payload) => api.post("/social/report", payload),
+  hideContent: (payload) => api.post("/social/hide", payload),
 };
 
 export const highlightApi = {

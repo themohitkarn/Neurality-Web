@@ -24,9 +24,16 @@ def search_users():
     if not query:
         return jsonify({"users": []})
 
+    from models.social import BlockedUser
+    blocks = BlockedUser.query.filter(
+        or_(BlockedUser.blocker_id == g.current_user.id, BlockedUser.blocked_id == g.current_user.id)
+    ).all()
+    blocked_ids = {b.blocker_id for b in blocks} | {b.blocked_id for b in blocks}
+    blocked_ids.add(g.current_user.id)
+
     users = (
         User.query.filter(
-            User.id != g.current_user.id,
+            ~User.id.in_(blocked_ids),
             or_(
                 func.lower(User.username).like(f"%{query.lower()}%"),
                 func.lower(func.coalesce(User.full_name, "")).like(f"%{query.lower()}%"),
@@ -64,10 +71,19 @@ def following_users():
 @share_bp.get("/suggested-users")
 @token_required
 def suggested_users():
+    from models.social import BlockedUser
+    blocks = BlockedUser.query.filter(
+        or_(BlockedUser.blocker_id == g.current_user.id, BlockedUser.blocked_id == g.current_user.id)
+    ).all()
+    blocked_ids = {b.blocker_id for b in blocks} | {b.blocked_id for b in blocks}
+    blocked_ids.add(g.current_user.id)
+
     # Users not followed by current user
     following_ids = [u.id for u in g.current_user.following.all()]
+    excluded_ids = blocked_ids | set(following_ids)
+    
     suggested = (
-        User.query.filter(User.id != g.current_user.id, ~User.id.in_(following_ids) if following_ids else True)
+        User.query.filter(~User.id.in_(excluded_ids))
         .order_by(func.random())
         .limit(10)
         .all()

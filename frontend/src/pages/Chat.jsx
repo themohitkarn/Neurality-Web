@@ -274,7 +274,14 @@ export default function Chat() {
         </div>
         <div className="flex p-1 bg-white/5 mx-4 rounded-xl border border-white/5 mb-2">
           {["chats", "requests"].map(t => (
-            <button key={t} onClick={() => setActiveSidebarTab(t)} className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${activeSidebarTab === t ? "bg-accent text-white" : "text-white/40"}`}>{t}</button>
+            <button 
+              key={t} 
+              onClick={() => setActiveSidebarTab(t)} 
+              style={{ backgroundColor: activeSidebarTab === t ? "var(--accent)" : "transparent" }}
+              className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${activeSidebarTab === t ? "text-white" : "text-white/40"}`}
+            >
+              {t}
+            </button>
           ))}
         </div>
         <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar">

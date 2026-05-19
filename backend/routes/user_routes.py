@@ -77,19 +77,32 @@ def search_users():
     if not query:
         return jsonify({"users": []})
 
-    users = (
-        User.query.filter(
-            or_(
-                func.lower(User.username).like(f"%{query.lower()}%"),
-                func.lower(func.coalesce(User.full_name, "")).like(f"%{query.lower()}%"),
-            )
-        )
-        .order_by(User.username.asc())
-        .limit(8)
-        .all()
-    )
     viewer = get_current_user_optional()
     viewer_id = viewer.id if viewer else None
+    
+    blocked_ids = set()
+    if viewer:
+        from models.social import BlockedUser
+        blocks = BlockedUser.query.filter(
+            or_(BlockedUser.blocker_id == viewer.id, BlockedUser.blocked_id == viewer.id)
+        ).all()
+        for b in blocks:
+            blocked_ids.add(b.blocker_id)
+            blocked_ids.add(b.blocked_id)
+        blocked_ids.discard(viewer.id)
+
+    query_obj = User.query.filter(
+        or_(
+            func.lower(User.username).like(f"%{query.lower()}%"),
+            func.lower(func.coalesce(User.full_name, "")).like(f"%{query.lower()}%"),
+        )
+    )
+    
+    if blocked_ids:
+        query_obj = query_obj.filter(~User.id.in_(blocked_ids))
+
+    users = query_obj.order_by(User.username.asc()).limit(8).all()
+    
     return jsonify({"users": [user.to_dict(viewer_id=viewer_id, include_email=False) for user in users]})
 
 
@@ -101,9 +114,26 @@ def get_user_profile(user_id):
 
     viewer = get_current_user_optional()
     viewer_id = viewer.id if viewer else None
+    
+    is_blocked_by_viewer = False
+    is_blocked_by_target = False
+    
+    if viewer:
+        from models.social import BlockedUser
+        is_blocked_by_viewer = BlockedUser.query.filter_by(blocker_id=viewer.id, blocked_id=user.id).first() is not None
+        is_blocked_by_target = BlockedUser.query.filter_by(blocker_id=user.id, blocked_id=viewer.id).first() is not None
+        
+        if is_blocked_by_viewer or is_blocked_by_target:
+            return jsonify({"message": "User not found."}), 404
+
     data = user.to_dict(viewer_id=viewer_id, include_email=viewer_id == user.id, include_posts=True)
+    
     if viewer:
         data = _attach_follow_access(data, viewer, user)
+        
+    data["is_blocked"] = False
+    data["blocked_by_them"] = False
+
     if not data.get("requires_follow"):
         data["posts"] = [
             post.to_dict(current_user_id=viewer_id, include_comments=True)
@@ -269,8 +299,10 @@ def update_settings():
     payload = request.get_json(silent=True) or {}
     theme_preference = (payload.get("theme_preference") or g.current_user.theme_preference or "system").strip().lower()
     account_type = (payload.get("account_type") or g.current_user.account_type or "personal").strip().lower()
-    if theme_preference not in ALLOWED_THEME_PREFERENCES:
-        return jsonify({"message": "Theme preference must be system, light, or dark."}), 400
+    
+    ALLOWED_THEMES = {"system", "light", "dark", "amoled", "custom"}
+    if theme_preference not in ALLOWED_THEMES:
+        return jsonify({"message": "Theme preference must be system, light, dark, amoled, or custom."}), 400
     if account_type not in ALLOWED_ACCOUNT_TYPES:
         return jsonify({"message": "Account type must be personal, professional, or creator."}), 400
 
@@ -301,6 +333,14 @@ def update_settings():
         payload.get("reduce_data_usage"),
         default=g.current_user.reduce_data_usage,
     )
+    g.current_user.read_receipts_enabled = _bool_value(
+        payload.get("read_receipts_enabled"),
+        default=g.current_user.read_receipts_enabled,
+    )
+    g.current_user.typing_indicators_enabled = _bool_value(
+        payload.get("typing_indicators_enabled"),
+        default=g.current_user.typing_indicators_enabled,
+    )
 
     # Granular privacy controls
     allowed_privacy = {"everyone", "followers", "nobody"}
@@ -317,6 +357,28 @@ def update_settings():
     story_privacy = (payload.get("story_privacy") or "").strip().lower()
     if story_privacy and story_privacy in allowed_story_privacy:
         g.current_user.story_privacy = story_privacy
+
+    # Dynamically persist any extra theme/ui/flag metadata into theme_metadata
+    import json
+    meta = {}
+    if g.current_user.theme_metadata:
+        try:
+            meta = json.loads(g.current_user.theme_metadata)
+        except Exception:
+            pass
+
+    model_columns = {
+        "theme_preference", "is_private", "account_type", "allow_message_requests",
+        "show_activity_status", "email_notifications", "push_notifications",
+        "autoplay_reels", "reduce_data_usage", "read_receipts_enabled",
+        "typing_indicators_enabled", "who_can_comment", "who_can_tag", "story_privacy"
+    }
+
+    for key, val in payload.items():
+        if key not in model_columns:
+            meta[key] = val
+
+    g.current_user.theme_metadata = json.dumps(meta)
 
     try:
         db.session.commit()

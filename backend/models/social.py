@@ -191,3 +191,20 @@ class BlockedUser(db.Model):
 
     blocker = db.relationship("User", foreign_keys=[blocker_id], backref=db.backref("blocked_users", lazy="dynamic"))
     blocked = db.relationship("User", foreign_keys=[blocked_id])
+
+
+class HiddenContent(db.Model):
+    """Tracks posts or reels that a user has marked as 'Not interested'."""
+    __tablename__ = "hidden_contents"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    post_id = db.Column(db.Integer, db.ForeignKey("posts.id", ondelete="CASCADE"), nullable=True)
+    reel_id = db.Column(db.Integer, db.ForeignKey("reels.id", ondelete="CASCADE"), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    __table_args__ = (db.UniqueConstraint("user_id", "post_id", "reel_id", name="uq_hidden_content"),)
+
+    user = db.relationship("User", backref=db.backref("hidden_contents_list", lazy="dynamic"))
+    post = db.relationship("Post")
+    reel = db.relationship("Reel")

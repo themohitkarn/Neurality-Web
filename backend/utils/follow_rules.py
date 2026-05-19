@@ -195,7 +195,7 @@ def respond_to_follow_request(current_user, request_id, action):
     if action not in {FOLLOW_REQUEST_ACCEPTED, FOLLOW_REQUEST_REJECTED}:
         raise ValueError("action must be accepted or rejected.")
 
-    follow_request = FollowRequest.query.get(request_id)
+    follow_request = db.session.get(FollowRequest, request_id)
     if not follow_request:
         raise LookupError("Follow request not found.")
 
@@ -205,7 +205,7 @@ def respond_to_follow_request(current_user, request_id, action):
     if follow_request.status != FOLLOW_REQUEST_PENDING:
         raise RuntimeError("This follow request has already been handled.")
 
-    sender = User.query.get(follow_request.sender_id)
+    sender = db.session.get(User, follow_request.sender_id)
     if not sender:
         raise LookupError("Request sender no longer exists.")
 

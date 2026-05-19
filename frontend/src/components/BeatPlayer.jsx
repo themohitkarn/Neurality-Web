@@ -8,9 +8,10 @@ import MuteOverlay from "./MuteOverlay";
 import { hapticHeavy, hapticLight } from "../utils/capacitor";
 import { useVideoAutoplay } from "../hooks/useVideoAutoplay";
 import AdaptiveMediaRenderer from "./AdaptiveMediaRenderer";
+import api from "../services/api";
 
 
-export default function BeatPlayer({ beat, onToggleLike, onAddStory, currentUser }) {
+export default function BeatPlayer({ beat, index, nextReel, onToggleLike, onAddStory, onDeleteBeat, onHideBeat, onBlockUser, currentUser }) {
   const { containerRef, isActive } = useVideoAutoplay(`beat-${beat.id}`, 0.6);
   const videoRef = useRef(null);
   const [muted, setMuted] = useState(beat.is_muted !== false);
@@ -18,9 +19,35 @@ export default function BeatPlayer({ beat, onToggleLike, onAddStory, currentUser
   const [showHeartOverlay, setShowHeartOverlay] = useState(false);
   const [paused, setPaused] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [watchTime, setWatchTime] = useState(0);
+  const [isFollowing, setIsFollowing] = useState(beat.author.is_following);
   const lastTapRef = useRef(0);
   const lastTapXRef = useRef(0);
   const longPressRef = useRef(null);
+
+  useEffect(() => {
+    setIsFollowing(beat.author.is_following);
+  }, [beat.author.is_following]);
+
+  const handleFollowClick = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const previousState = isFollowing;
+    setIsFollowing(!previousState);
+    
+    try {
+      if (previousState) {
+        await api.post(`/unfollow/${beat.author.id}`);
+      } else {
+        await api.post(`/follow/${beat.author.id}`);
+      }
+    } catch (err) {
+      console.error("Failed to toggle follow status:", err);
+      setIsFollowing(previousState);
+    }
+  };
+
 
   /* Auto-play / pause based on active state */
   useEffect(() => {
@@ -28,15 +55,24 @@ export default function BeatPlayer({ beat, onToggleLike, onAddStory, currentUser
     if (!video) return;
 
     if (isActive) {
-      video.currentTime = 0;
+      if (video.ended) {
+        video.currentTime = 0;
+      }
       const playPromise = video.play();
-      if (playPromise?.catch) playPromise.catch(() => {});
+      if (playPromise !== undefined) {
+        playPromise.catch(() => {});
+      }
       setPaused(false);
     } else {
       video.pause();
       setPaused(true);
     }
   }, [isActive]);
+
+
+  
+
+
 
   /* Progress tracking */
   useEffect(() => {
@@ -52,6 +88,118 @@ export default function BeatPlayer({ beat, onToggleLike, onAddStory, currentUser
     video.addEventListener("timeupdate", updateProgress);
     return () => video.removeEventListener("timeupdate", updateProgress);
   }, [isActive]);
+
+  const hasViewedRef = useRef(false);
+
+  useEffect(() => {
+  hasViewedRef.current = false;
+}, [beat.id]);
+
+  /* Trigger simple reel view on 3-second watch */
+  useEffect(() => {
+    if (!isActive || !videoRef.current || hasViewedRef.current) {
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        await api.post(`/reels/${beat.id}/view`);
+        hasViewedRef.current = true;
+        console.log("view added");
+      } catch (err) {
+        console.log("view failed", err);
+      }
+    }, 3000);
+
+    return () => clearTimeout(timer);
+  }, [isActive, beat.id]);
+
+  /* Watch time accumulator (1-second tick) */
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (videoRef.current && isActive) {
+        setWatchTime(Math.floor(videoRef.current.currentTime));
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isActive]);
+
+  /* Track watchTime and beat.id using refs to prevent stale closure scoping on cleanup */
+  const watchTimeRef = useRef(0);
+  const beatIdRef = useRef(beat.id);
+  
+  useEffect(() => {
+    watchTimeRef.current = watchTime;
+  }, [watchTime]);
+ 
+  useEffect(() => {
+    beatIdRef.current = beat.id;
+  }, [beat.id]);
+
+  /* Send watch data (seconds, completion) when the active reel changes or unmounts */
+  const wasActiveRef = useRef(false);
+  const progressSentRef = useRef(false);
+  useEffect(() => {
+    progressSentRef.current = false;
+  }, [beat.id]);
+
+  useEffect(() => {
+    if (isActive) {
+      wasActiveRef.current = true;
+    }
+
+    return () => {
+      if (wasActiveRef.current) {
+        const video = videoRef.current;
+        const currentWatchTime = watchTimeRef.current;
+        const currentBeatId = beatIdRef.current;
+
+        if (
+          video &&
+          currentWatchTime >= 3 &&
+          !progressSentRef.current
+        ){
+          const completed = video.duration ? (video.currentTime >= video.duration * 0.9) : false;
+          console.log("sending watch progress:", {
+            reel_id: currentBeatId,
+            watch_time: currentWatchTime,
+            completed: completed
+          });
+
+          api.post(`/reels/${currentBeatId}/watch-progress`, {
+            watch_time: currentWatchTime,
+            completed: completed,
+            duration: video.duration
+          })
+          .then(() => {
+            progressSentRef.current = true;
+          })
+          .catch((err) => {
+            console.error("Failed to send watch progress:", err);
+          });
+        }
+        wasActiveRef.current = false;
+      }
+    };
+  }, [isActive]);
+
+  /* Preload next reel */
+  useEffect(() => {
+    if (!isActive || !nextReel?.video_url) {
+      return;
+    }
+    const preloadVideo = document.createElement("video");
+    preloadVideo.src = nextReel.video_url;
+    preloadVideo.preload = "auto";
+
+    return () => {
+      preloadVideo.pause?.();
+      preloadVideo.src = "";
+      preloadVideo.load();
+      preloadVideo.remove();
+    };
+
+}, [isActive, nextReel]);
 
   const tapTimeoutRef = useRef(null);
 
@@ -230,14 +378,18 @@ export default function BeatPlayer({ beat, onToggleLike, onAddStory, currentUser
             beat={beat}
             onToggleLike={onToggleLike}
             onAddStory={() => onAddStory?.({ ...beat, type: "reel" })}
+            onDeleteBeat={onDeleteBeat}
+            onHideBeat={onHideBeat}
+            onBlockUser={onBlockUser}
+            currentUser={currentUser}
           />
         </div>
 
         {/* Bottom User/Caption Info (Left) */}
         <div 
-          className="absolute bottom-0 left-0 right-16 z-20 p-5 pr-4 flex flex-col gap-4 pointer-events-none"
+          className="absolute bottom-0 left-0 right-16 z-20 p-5 pr-4 flex flex-col gap-6 pointer-events-none"
           style={{ 
-            paddingBottom: "calc(var(--bottomnav-h, 0px) + env(safe-area-inset-bottom, 0px) + 24px)"
+            paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 120px)"
           }}
         >
           <div className="pointer-events-auto flex flex-col items-start gap-3">
@@ -249,8 +401,11 @@ export default function BeatPlayer({ beat, onToggleLike, onAddStory, currentUser
                 {beat.author.username}
               </span>
               {currentUser && beat.author && String(beat.author.id) !== String(currentUser.id) && (
-                <button className="px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-[11px] font-black uppercase tracking-wider text-white transition-all hover:bg-white/20 active:scale-95 ml-2">
-                  {beat.author.is_following ? "Following" : "Follow"}
+                <button 
+                  onClick={handleFollowClick}
+                  className="px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-[11px] font-black uppercase tracking-wider text-white transition-all hover:bg-white/20 active:scale-95 ml-2"
+                >
+                  {isFollowing ? "Following" : "Follow"}
                 </button>
               )}
             </Link>
@@ -264,7 +419,7 @@ export default function BeatPlayer({ beat, onToggleLike, onAddStory, currentUser
             </div>
 
             {/* Music Info */}
-            <div className="flex items-center gap-2 max-w-[80%]">
+            <div className="flex items-center gap-2 max-w-[80%] mb-3">
               <div className="w-4 h-4 text-white/70 animate-spin-slow">
                  <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
               </div>

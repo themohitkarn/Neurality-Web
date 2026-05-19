@@ -1,26 +1,20 @@
 import sys
 import os
-from sqlalchemy import text
-from dotenv import load_dotenv
-import psycopg2
 
-load_dotenv()
-url = os.getenv("DATABASE_URL")
-print(f"Connecting to {url.split('@')[-1]}")
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-try:
-    conn = psycopg2.connect(url)
-    cur = conn.cursor()
-    cur.execute("SELECT column_name FROM information_schema.columns WHERE table_name = 'users';")
-    columns = [row[0] for row in cur.fetchall()]
-    print("Columns in 'users':", columns)
-    
-    missing = ['theme_preference', 'is_private', 'account_type']
-    for col in missing:
-        if col not in columns:
-            print(f"MISSING: {col}")
-    
-    cur.close()
-    conn.close()
-except Exception as e:
-    print(f"Error: {e}")
+from app import create_app
+from extensions import db
+from models.user import User
+from models.reel import Reel
+from models.reel_view import ReelView
+
+app = create_app()
+
+with app.app_context():
+    user_count = User.query.count()
+    reel_count = Reel.query.count()
+    view_count = ReelView.query.count()
+    print(f"Users: {user_count}")
+    print(f"Reels: {reel_count}")
+    print(f"ReelViews: {view_count}")

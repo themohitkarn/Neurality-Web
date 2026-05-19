@@ -52,6 +52,7 @@ class User(db.Model):
     story_privacy = db.Column(db.String(20), nullable=False, default="everyone")  # everyone, followers, close_friends
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     fcm_token = db.Column(db.String(255), nullable=True)
+    theme_metadata = db.Column(db.Text, nullable=True)
 
     posts = db.relationship(
         "Post",
@@ -167,8 +168,7 @@ class User(db.Model):
             "profile_pic": build_media_url(self.profile_pic),
             "followers_count": self.followers.count(),
             "following_count": self.following.count(),
-            "posts_count": self.posts.count(),
-            "reels_count": self.reels.count(),
+            "posts_count": (self.posts.count() if self.posts else 0) + (self.reels.count() if self.reels else 0),
             "account_type": self.account_type or "personal",
             "created_at": self.created_at.isoformat(),
             "is_self": is_self,
@@ -183,6 +183,13 @@ class User(db.Model):
             payload["email"] = self.email
 
         if include_settings:
+            import json
+            meta = {}
+            if self.theme_metadata:
+                try:
+                    meta = json.loads(self.theme_metadata)
+                except Exception:
+                    pass
             payload["settings"] = {
                 "theme_preference": self.theme_preference or "system",
                 "is_private": bool(self.is_private),
@@ -198,6 +205,7 @@ class User(db.Model):
                 "who_can_comment": self.who_can_comment or "everyone",
                 "who_can_tag": self.who_can_tag or "everyone",
                 "story_privacy": self.story_privacy or "everyone",
+                **meta
             }
             payload["theme_preference"] = self.theme_preference or "system"
 

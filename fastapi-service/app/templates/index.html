@@ -1,0 +1,2494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secure Distributed Sync Hub</title>
+    <!-- Premium Google Fonts: Outfit -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-gradient: linear-gradient(135deg, #09090b 0%, #171717 100%);
+            --panel-bg: rgba(255, 255, 255, 0.03);
+            --panel-border: rgba(255, 255, 255, 0.08);
+            --accent-primary: #6366f1;
+            --accent-hover: #4f46e5;
+            --text-primary: #f4f4f5;
+            --text-secondary: #a1a1aa;
+            --success: #10b981;
+            --error: #ef4444;
+            --warning: #f59e0b;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: var(--bg-gradient);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow-x: hidden;
+            padding: 24px;
+        }
+
+        /* Floating Offline Banner Alert */
+        .offline-banner {
+            position: fixed;
+            top: 24px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-100px);
+            background: rgba(245, 158, 11, 0.15);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            padding: 12px 24px;
+            border-radius: 30px;
+            color: #fde68a;
+            font-size: 13px;
+            font-weight: 600;
+            box-shadow: 0 10px 30px rgba(245, 158, 11, 0.2);
+            z-index: 2000;
+            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .offline-banner.active {
+            transform: translateX(-50%) translateY(0);
+        }
+
+        /* Frosted Glassmorphism Card Container */
+        .glass-card {
+            background: var(--panel-bg);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid var(--panel-border);
+            border-radius: 28px;
+            width: 100%;
+            max-width: 500px;
+            padding: 36px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .glass-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 6px;
+            background: linear-gradient(90deg, #6366f1, #d946ef);
+        }
+
+        /* Auth Form Overlay styling */
+        .auth-overlay {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .auth-overlay h2 {
+            font-size: 26px;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            background: linear-gradient(to right, #f4f4f5, #6366f1);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-align: center;
+        }
+
+        .auth-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .auth-group label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .auth-input {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 14px 16px;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s, background-color 0.2s;
+        }
+
+        .auth-input:focus {
+            border-color: var(--accent-primary);
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .auth-btn {
+            background: var(--accent-primary);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            padding: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background-color 0.2s, transform 0.1s;
+            margin-top: 10px;
+        }
+
+        .auth-btn:hover {
+            background: var(--accent-hover);
+        }
+
+        .auth-btn:active {
+            transform: scale(0.98);
+        }
+
+        .auth-switch {
+            font-size: 13px;
+            color: var(--text-secondary);
+            text-align: center;
+            cursor: pointer;
+            margin-top: 12px;
+            transition: color 0.2s;
+        }
+
+        .auth-switch span {
+            color: var(--accent-primary);
+            font-weight: 600;
+        }
+
+        .auth-switch span:hover {
+            text-decoration: underline;
+        }
+
+        /* Top Header Area */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .title-group h1 {
+            font-size: 24px;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            background: linear-gradient(to right, #f4f4f5, #a1a1aa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .title-group p {
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+
+        .badges {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 6px;
+        }
+
+        .version-badge {
+            font-size: 11px;
+            font-weight: 600;
+            background: rgba(99, 102, 241, 0.15);
+            color: #a5b4fc;
+            padding: 4px 10px;
+            border-radius: 20px;
+            border: 1px solid rgba(99, 102, 241, 0.3);
+        }
+
+        .state-badge {
+            font-size: 10px;
+            font-weight: 700;
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-secondary);
+            padding: 2px 8px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            text-transform: uppercase;
+        }
+
+        /* User Scope Panel */
+        .user-panel {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            padding: 16px 20px;
+            border-radius: 18px;
+            display: flex;
+            align-items: center;
+        }
+
+        .avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #6366f1 0%, #d946ef 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: 800;
+            font-size: 16px;
+            color: white;
+            margin-right: 14px;
+            box-shadow: 0 4px 10px rgba(99, 102, 241, 0.3);
+        }
+
+        .user-info {
+            flex-grow: 1;
+        }
+
+        .user-info label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-secondary);
+            font-weight: 600;
+        }
+
+        .user-info .username-display {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-top: 2px;
+        }
+
+        .user-info .user-id-sub {
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+
+        /* Logout button */
+        .logout-btn {
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: #fca5a5;
+            padding: 6px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            margin-left: 12px;
+        }
+
+        .logout-btn:hover {
+            background: rgba(239, 68, 68, 0.3);
+        }
+
+        /* Dynamic Connection Indicator */
+        .connection-status {
+            display: flex;
+            align-items: center;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-left: 12px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 8px;
+            display: inline-block;
+        }
+
+        .online {
+            background-color: var(--success);
+            box-shadow: 0 0 10px var(--success);
+            animation: pulse 1.8s infinite;
+        }
+
+        .offline {
+            background-color: var(--error);
+            box-shadow: 0 0 10px var(--error);
+        }
+
+        .connecting {
+            background-color: var(--warning);
+            box-shadow: 0 0 10px var(--warning);
+            animation: pulse 1.2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(0.95); opacity: 0.8; }
+            50% { transform: scale(1.1); opacity: 1; }
+            100% { transform: scale(0.95); opacity: 0.8; }
+        }
+
+        /* Simulator Overlay Panel */
+        .sim-panel {
+            background: rgba(99, 102, 241, 0.04);
+            border: 1px dashed rgba(99, 102, 241, 0.25);
+            padding: 16px;
+            border-radius: 18px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .sim-detail h4 {
+            font-size: 13px;
+            font-weight: 600;
+            color: #a5b4fc;
+        }
+
+        .sim-detail p {
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+
+        /* Settings Group Controls */
+        .settings-list {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .setting-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .setting-detail h3 {
+            font-size: 15px;
+            font-weight: 600;
+        }
+
+        .setting-detail p {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-top: 2px;
+        }
+
+        /* Journal Visual Queue List */
+        .queue-panel {
+            background: rgba(255, 255, 255, 0.01);
+            border: 1px solid rgba(255, 255, 255, 0.04);
+            border-radius: 18px;
+            padding: 18px;
+        }
+
+        .queue-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+
+        .queue-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 120px;
+            overflow-y: auto;
+        }
+
+        .queue-item {
+            font-family: monospace;
+            font-size: 11px;
+            background: rgba(255, 255, 255, 0.02);
+            padding: 8px 12px;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            border: 1px solid rgba(255, 255, 255, 0.03);
+        }
+
+        .queue-item.replaying { border-color: rgba(99, 102, 241, 0.4); }
+        .queue-item.failed { border-color: rgba(239, 68, 68, 0.4); }
+        .queue-item.conflicted { border-color: rgba(245, 158, 11, 0.4); }
+
+        .empty-text {
+            font-size: 11px;
+            color: var(--text-secondary);
+            text-align: center;
+            padding: 10px 0;
+            font-style: italic;
+        }
+
+        /* High-End Sleek CSS Switch */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 48px;
+            height: 26px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: rgba(255, 255, 255, 0.08);
+            transition: .3s cubic-bezier(0.4, 0, 0.2, 1);
+            border-radius: 34px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: #fff;
+            transition: .3s cubic-bezier(0.4, 0, 0.2, 1);
+            border-radius: 50%;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+        }
+
+        input:checked + .slider {
+            background-color: var(--accent-primary);
+            box-shadow: 0 0 12px rgba(99, 102, 241, 0.3);
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(22px);
+        }
+
+        /* Simulated offline check custom style */
+        .slider.sim {
+            background-color: var(--success);
+        }
+        input:checked + .slider.sim {
+            background-color: var(--error);
+            box-shadow: 0 0 12px rgba(239, 68, 68, 0.3);
+        }
+
+        /* Glass Toast Popup notifications */
+        .toast-container {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            z-index: 3000;
+        }
+
+        .toast {
+            background: rgba(24, 24, 27, 0.85);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            padding: 16px 20px;
+            border-radius: 14px;
+            box-shadow: 0 10px 25px -5px rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 300px;
+            transform: translateY(100px);
+            opacity: 0;
+            animation: slideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+            transition: opacity 0.3s ease;
+        }
+
+        .toast.success { border-left: 4px solid var(--success); }
+        .toast.error { border-left: 4px solid var(--error); }
+        .toast.warning { border-left: 4px solid var(--warning); }
+
+        .toast-message {
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        @keyframes slideUp {
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        /* Premium Glowing Bell & Dropdown Styles */
+        .notification-bell-container {
+            position: relative;
+            z-index: 100;
+        }
+
+        .bell-btn {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 18px;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            color: #f4f4f5;
+        }
+
+        .bell-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            transform: scale(1.05);
+            box-shadow: 0 0 15px rgba(99, 102, 241, 0.3);
+            border-color: rgba(99, 102, 241, 0.4);
+        }
+
+        .unread-badge {
+            position: absolute;
+            top: -2px;
+            right: -2px;
+            background: #ef4444;
+            color: white;
+            font-size: 10px;
+            font-weight: 700;
+            border-radius: 50%;
+            min-width: 18px;
+            height: 18px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 0 4px;
+            border: 2px solid #18181b;
+            animation: pulse-glow 2s infinite;
+        }
+
+        @keyframes pulse-glow {
+            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+            70% { transform: scale(1.05); box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+
+        .notification-dropdown {
+            position: absolute;
+            top: 50px;
+            right: 0;
+            width: 320px;
+            background: rgba(24, 24, 27, 0.95);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.6), 0 10px 10px -5px rgba(0, 0, 0, 0.4);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            animation: dropdown-fade-in 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        @keyframes dropdown-fade-in {
+            from { opacity: 0; transform: translateY(-10px) scale(0.95); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        .dropdown-header {
+            padding: 14px 18px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .dropdown-header h3 {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .mark-all-read-btn {
+            background: transparent;
+            border: none;
+            color: #a5b4fc;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+
+        .mark-all-read-btn:hover {
+            color: #818cf8;
+            text-decoration: underline;
+        }
+
+        .dropdown-list {
+            max-height: 280px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .notification-item {
+            padding: 12px 18px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+            cursor: pointer;
+            transition: background-color 0.2s;
+            position: relative;
+            display: flex;
+            gap: 10px;
+        }
+
+        .notification-item:hover {
+            background-color: rgba(255, 255, 255, 0.02);
+        }
+
+        .notification-item.unread {
+            background-color: rgba(99, 102, 241, 0.03);
+        }
+
+        .notification-item.unread::before {
+            content: "";
+            position: absolute;
+            left: 6px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 6px;
+            height: 6px;
+            background-color: #6366f1;
+            border-radius: 50%;
+            box-shadow: 0 0 8px #6366f1;
+        }
+
+        .notif-icon-placeholder {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: rgba(99, 102, 241, 0.15);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 14px;
+            flex-shrink: 0;
+            color: #a5b4fc;
+        }
+
+        .notif-content {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .notif-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .notif-body {
+            font-size: 11px;
+            color: var(--text-secondary);
+            line-height: 1.3;
+        }
+
+        .notif-time {
+            font-size: 9px;
+            color: rgba(255, 255, 255, 0.25);
+            margin-top: 2px;
+        }
+
+        .empty-notifications {
+            padding: 24px;
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: 12px;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Floating Offline Mode Banner -->
+    <div class="offline-banner" id="offlineBanner">
+        <span>⚠️ Offline Mode Active (Failed writes will be queued safely)</span>
+    </div>
+
+    <!-- MAIN SECURE DOCKING CARD -->
+    <div class="glass-card" id="appCard" style="display: none;">
+        <div class="header">
+            <div class="title-group">
+                <h1>Settings Hub</h1>
+                <p>Secure Sync Engine</p>
+            </div>
+            <div style="display: flex; align-items: center; gap: 14px;">
+                <!-- Glowing Bell Icon with Badge -->
+                <div class="notification-bell-container" id="bellContainer">
+                    <button class="bell-btn" id="bellBtn">
+                        🔔
+                        <span class="unread-badge" id="unreadBadge" style="display: none;">0</span>
+                    </button>
+                    <!-- Floating Dropdown list -->
+                    <div class="notification-dropdown" id="notificationDropdown" style="display: none;">
+                        <div class="dropdown-header">
+                            <h3>Notifications</h3>
+                            <button class="mark-all-read-btn" id="markAllReadBtn">Mark all read</button>
+                        </div>
+                        <div class="dropdown-list" id="notificationList">
+                            <div class="empty-notifications">No new notifications</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="badges">
+                    <span class="version-badge">v1.1.0 (SECURE)</span>
+                    <span class="state-badge" id="versionBadge">Ver: 0</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Simulated Network Panel -->
+        <div class="sim-panel">
+            <div class="sim-detail">
+                <h4>Simulate Client Offline</h4>
+                <p>Cut network to test mutations queue</p>
+            </div>
+            <label class="switch">
+                <input type="checkbox" id="simOfflineToggle">
+                <span class="slider sim"></span>
+            </label>
+        </div>
+
+        <!-- Authenticated Profile Panel -->
+        <div class="user-panel">
+            <div class="avatar" id="userAvatar">?</div>
+            <div class="user-info">
+                <label>Secure Session</label>
+                <div class="username-display" id="usernameDisplay">Loading User...</div>
+                <div class="user-id-sub" id="userIdDisplay">User ID: ...</div>
+            </div>
+            <div class="connection-status" id="connectionStatusBtn">
+                <span class="status-dot connecting" id="statusDot"></span>
+                <span id="statusText">Connecting</span>
+            </div>
+            <button class="logout-btn" id="logoutBtn">Logout</button>
+        </div>
+
+        <div class="settings-list">
+            <!-- Setting 1: Theme Option -->
+            <div class="setting-item">
+                <div class="setting-detail">
+                    <h3>Theme Select</h3>
+                    <p>Switch dark/light mode styles</p>
+                </div>
+                <label class="switch">
+                    <input type="checkbox" id="themeToggle">
+                    <span class="slider"></span>
+                </label>
+            </div>
+
+            <!-- Setting 2: Email Toggles -->
+            <div class="setting-item">
+                <div class="setting-detail">
+                    <h3>Email Notifications</h3>
+                    <p>Receive activity alerts</p>
+                </div>
+                <label class="switch">
+                    <input type="checkbox" id="emailToggle">
+                    <span class="slider"></span>
+                </label>
+            </div>
+
+            <!-- Setting 3: Push Toggles -->
+            <div class="setting-item">
+                <div class="setting-detail">
+                    <h3>Push Alerts</h3>
+                    <p>Enable browser push notifications</p>
+                </div>
+                <label class="switch">
+                    <input type="checkbox" id="pushToggle">
+                    <span class="slider"></span>
+                </label>
+            </div>
+        </div>
+
+        <!-- Notification Settings & Quiet Hours Preference Panel -->
+        <div class="queue-panel" style="margin-top: 20px;">
+            <div class="queue-header" style="margin-bottom: 16px;">
+                <span>Notification Channels & Quiet Hours</span>
+            </div>
+            
+            <div class="settings-list" style="gap: 14px;">
+                <!-- WebSocket Toggle Preference -->
+                <div class="setting-item">
+                    <div class="setting-detail">
+                        <h3>WebSocket Channel</h3>
+                        <p>Allow realtime socket delivery</p>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="prefWebsocketToggle" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <!-- Quiet Hours Preference Input Fields -->
+                <div class="setting-item" style="flex-direction: column; align-items: flex-start; gap: 8px;">
+                    <div class="setting-detail">
+                        <h3>Quiet Hours Suppression</h3>
+                        <p>Suppress notifications during quiet periods (UTC)</p>
+                    </div>
+                    <div style="display: flex; gap: 10px; width: 100%; margin-top: 6px;">
+                        <div style="flex: 1; display: flex; flex-direction: column; gap: 4px;">
+                            <span style="font-size: 10px; color: var(--text-secondary);">Start Time (HH:MM)</span>
+                            <input type="text" id="prefQuietStart" class="auth-input" placeholder="e.g. 22:00" style="padding: 6px 12px; font-size: 12px; border-radius: 8px; margin: 0;">
+                        </div>
+                        <div style="flex: 1; display: flex; flex-direction: column; gap: 4px;">
+                            <span style="font-size: 10px; color: var(--text-secondary);">End Time (HH:MM)</span>
+                            <input type="text" id="prefQuietEnd" class="auth-input" placeholder="e.g. 08:00" style="padding: 6px 12px; font-size: 12px; border-radius: 8px; margin: 0;">
+                        </div>
+                    </div>
+                    <button class="auth-btn" id="savePrefBtn" style="padding: 8px 16px; font-size: 12px; border-radius: 8px; margin-top: 10px; width: auto; align-self: flex-end;">Save Preferences</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Simulated Notification Dispatch Panel -->
+        <div class="queue-panel" style="margin-top: 20px;">
+            <div class="queue-header" style="margin-bottom: 12px;">
+                <span>Simulate Event Broker Dispatch</span>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+                <div style="display: flex; gap: 10px;">
+                    <input type="text" id="triggerTitle" class="auth-input" placeholder="Notification Title" style="padding: 8px 12px; font-size: 12px; border-radius: 8px; margin: 0; flex: 1;">
+                    <select id="triggerType" class="auth-input" style="padding: 8px 12px; font-size: 12px; border-radius: 8px; margin: 0; width: auto; background: #242427; border-color: rgba(255,255,255,0.08); color: white;">
+                        <option value="alert">Alert</option>
+                        <option value="like">Like</option>
+                        <option value="comment">Comment</option>
+                        <option value="follow">Follow</option>
+                    </select>
+                </div>
+                <input type="text" id="triggerBody" class="auth-input" placeholder="Message content/body..." style="padding: 8px 12px; font-size: 12px; border-radius: 8px; margin: 0;">
+                <button class="auth-btn" id="triggerBtn" style="padding: 10px; font-size: 12px; border-radius: 8px; margin: 0; width: 100%;">Publish notification.created to Kafka</button>
+            </div>
+        </div>
+
+        <!-- Privacy Graph Control Center -->
+        <div class="queue-panel" style="margin-top: 20px;">
+            <div class="queue-header" style="margin-bottom: 12px;">
+                <span>Privacy Graph Control Center</span>
+            </div>
+            
+            <!-- Establish Edge Form -->
+            <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px;">
+                <div style="display: flex; gap: 10px;">
+                    <input type="text" id="privacyTargetUser" class="auth-input" placeholder="Target User ID (e.g. 2)" style="padding: 8px 12px; font-size: 12px; border-radius: 8px; margin: 0; flex: 1;">
+                    <select id="privacyEdgeType" class="auth-input" style="padding: 8px 12px; font-size: 12px; border-radius: 8px; margin: 0; width: auto; background: #242427; border-color: rgba(255,255,255,0.08); color: white;">
+                        <option value="blocked">Block</option>
+                        <option value="muted">Mute</option>
+                        <option value="restricted">Restrict</option>
+                        <option value="close_friend">Close Friend</option>
+                        <option value="favorite">Favorite</option>
+                    </select>
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <button class="auth-btn" id="privacyAddBtn" style="padding: 8px; font-size: 11px; border-radius: 6px; margin: 0; flex: 1; background: var(--accent-primary);">Apply Edge</button>
+                    <button class="auth-btn" id="privacyRemoveBtn" style="padding: 8px; font-size: 11px; border-radius: 6px; margin: 0; flex: 1; background: var(--error);">Remove Edge</button>
+                </div>
+            </div>
+
+            <!-- Edge Relationship Check -->
+            <div style="display: flex; flex-direction: column; gap: 8px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.05);">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-size: 11px; font-weight: 600; color: var(--text-secondary);">Lookup Relationship Status</span>
+                    <button class="auth-btn" id="privacyLookupBtn" style="padding: 4px 8px; font-size: 10px; border-radius: 4px; margin: 0; width: auto; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08);">Query Status</button>
+                </div>
+                <div id="relationshipResult" style="font-size: 11px; padding: 10px; background: rgba(0,0,0,0.2); border-radius: 8px; display: none; flex-direction: column; gap: 4px; border: 1px solid rgba(255,255,255,0.03);">
+                    <!-- Dynamic details here -->
+                </div>
+            </div>
+
+            <!-- Active Lists -->
+            <div style="margin-top: 14px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <span style="font-size: 11px; font-weight: 600; color: var(--text-secondary);">Your Active Relationships</span>
+                    <button class="auth-btn" id="privacyRefreshBlocksBtn" style="padding: 4px 8px; font-size: 10px; border-radius: 4px; margin: 0; width: auto; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08);">Refresh</button>
+                </div>
+                <div id="blockedUsersList" style="font-size: 11px; color: var(--text-secondary); display: flex; flex-wrap: wrap; gap: 6px;">
+                    <div style="font-style: italic; font-size: 10px; color: var(--text-secondary);">Click Refresh to retrieve relationships</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Feature Flags & Experimentation Platform -->
+        <div class="queue-panel" style="margin-top: 20px;">
+            <div class="queue-header" style="margin-bottom: 12px;">
+                <span>Gatekeeper Feature Flags & Experiments</span>
+                <button class="auth-btn" id="featuresRefreshBtn" style="padding: 4px 8px; font-size: 10px; border-radius: 4px; margin: 0; width: auto; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08);">Refresh Flags</button>
+            </div>
+            
+            <!-- Create Feature Form -->
+            <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; padding-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                <span style="font-size: 11px; font-weight: 600; color: var(--text-secondary);">Create / Update Feature Flag</span>
+                <input type="text" id="flagNameInput" class="auth-input" placeholder="Feature Name (e.g. beta_chat_ui)" style="padding: 8px 12px; font-size: 12px; border-radius: 8px; margin: 0;">
+                
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <div style="flex: 1; display: flex; flex-direction: column; gap: 4px;">
+                        <span style="font-size: 10px; color: var(--text-secondary);">Rollout %</span>
+                        <input type="number" id="flagRolloutInput" class="auth-input" value="0" min="0" max="100" style="padding: 8px; font-size: 12px; border-radius: 8px; margin: 0;">
+                    </div>
+                    <div style="flex: 1; display: flex; flex-direction: column; gap: 4px;">
+                        <span style="font-size: 10px; color: var(--text-secondary);">Enabled</span>
+                        <select id="flagEnabledInput" class="auth-input" style="padding: 8px; font-size: 12px; border-radius: 8px; margin: 0; background: #242427; border-color: rgba(255,255,255,0.08); color: white;">
+                            <option value="true">Active (Enabled)</option>
+                            <option value="false">Inactive (Disabled)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 4px;">
+                    <span style="font-size: 10px; color: var(--text-secondary);">Config payload (JSON string or variants experiment config)</span>
+                    <textarea id="flagConfigInput" class="auth-input" placeholder='{"variants": ["control", "test_a", "test_b"]}' style="padding: 8px 12px; font-size: 11px; border-radius: 8px; margin: 0; min-height: 50px; resize: vertical; font-family: monospace;"></textarea>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 4px;">
+                    <span style="font-size: 10px; color: var(--text-secondary);">Targeting Rule (Optional: region=ES, beta_cohort=true, user_id=1,2)</span>
+                    <div style="display: flex; gap: 8px;">
+                        <select id="flagRuleTypeInput" class="auth-input" style="padding: 8px; font-size: 11px; border-radius: 8px; margin: 0; background: #242427; border-color: rgba(255,255,255,0.08); color: white; width: auto;">
+                            <option value="">No Rule</option>
+                            <option value="user_id">Whitelist user_id</option>
+                            <option value="region">Region / Language</option>
+                            <option value="beta_cohort">Beta Cohort</option>
+                        </select>
+                        <input type="text" id="flagRuleValueInput" class="auth-input" placeholder="Rule Value (e.g. US or true)" style="padding: 8px 12px; font-size: 11px; border-radius: 8px; margin: 0; flex: 1;">
+                    </div>
+                </div>
+
+                <button class="auth-btn" id="saveFeatureBtn" style="padding: 8px; font-size: 11px; border-radius: 6px; margin-top: 6px; background: var(--accent-primary);">Save Gatekeeper Flag</button>
+            </div>
+
+            <!-- Active Feature Flags List with slider rollouts and killswitch buttons -->
+            <div style="margin-bottom: 16px;">
+                <span style="font-size: 11px; font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">Registered Feature Flags</span>
+                <div id="featuresListContainer" style="display: flex; flex-direction: column; gap: 10px;">
+                    <!-- Dynamic feature flag lists will load here -->
+                    <div style="font-style: italic; font-size: 10px; color: var(--text-secondary);">Click Refresh to list features</div>
+                </div>
+            </div>
+
+            <!-- Feature Live Evaluation Panel -->
+            <div style="display: flex; flex-direction: column; gap: 8px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.05);">
+                <span style="font-size: 11px; font-weight: 600; color: var(--text-secondary);">Live Evaluation Engine</span>
+                <div style="display: flex; gap: 8px;">
+                    <input type="text" id="evalFlagName" class="auth-input" placeholder="Flag Name (e.g. beta_chat_ui)" style="padding: 8px; font-size: 11px; border-radius: 8px; margin: 0; flex: 1;">
+                    <input type="text" id="evalUserId" class="auth-input" placeholder="User ID override" style="padding: 8px; font-size: 11px; border-radius: 8px; margin: 0; flex: 1;">
+                    <button class="auth-btn" id="evalSubmitBtn" style="padding: 8px; font-size: 10px; border-radius: 8px; margin: 0; width: auto; background: var(--accent-primary);">Evaluate</button>
+                </div>
+                <div id="evalResultContainer" style="font-size: 11px; padding: 10px; background: rgba(0,0,0,0.25); border-radius: 8px; border: 1px solid rgba(255,255,255,0.03); display: none;">
+                    <!-- Evaluation results loaded here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Offline Queue Panel -->
+        <div class="queue-panel" style="margin-top: 20px;">
+            <div class="queue-header">
+                <span>Durable Mutation Journal</span>
+                <span id="queueCounter">Queue Depth: 0</span>
+            </div>
+            <div class="queue-list" id="queueList">
+                <div class="empty-text">No pending mutations in journal</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- AUTH CARD OVERLAY -->
+    <div class="glass-card auth-overlay" id="authCard">
+        <h2 id="authTitle">Secure Session Sign-In</h2>
+        
+        <div class="auth-group">
+            <label for="authUsername">Username</label>
+            <input type="text" class="auth-input" id="authUsername" placeholder="e.g. alex_stone">
+        </div>
+
+        <div class="auth-group" id="emailGroup" style="display: none;">
+            <label for="authEmail">Email Address</label>
+            <input type="email" class="auth-input" id="authEmail" placeholder="alex@example.com">
+        </div>
+
+        <div class="auth-group">
+            <label for="authPassword">Password</label>
+            <input type="password" class="auth-input" id="authPassword" placeholder="••••••••">
+        </div>
+
+        <button class="auth-btn" id="authSubmitBtn">Login</button>
+        <div class="auth-switch" id="authSwitchLink">Don't have an account? <span>Register</span></div>
+    </div>
+
+    <!-- Notification Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script>
+        // DOM Handles
+        const appCard = document.getElementById("appCard");
+        const authCard = document.getElementById("authCard");
+        const authTitle = document.getElementById("authTitle");
+        const emailGroup = document.getElementById("emailGroup");
+        const authUsername = document.getElementById("authUsername");
+        const authEmail = document.getElementById("authEmail");
+        const authPassword = document.getElementById("authPassword");
+        const authSubmitBtn = document.getElementById("authSubmitBtn");
+        const authSwitchLink = document.getElementById("authSwitchLink");
+
+        const usernameDisplay = document.getElementById("usernameDisplay");
+        const userIdDisplay = document.getElementById("userIdDisplay");
+        const userAvatar = document.getElementById("userAvatar");
+        const statusDot = document.getElementById("statusDot");
+        const statusText = document.getElementById("statusText");
+        const versionBadge = document.getElementById("versionBadge");
+        const connectionStatusBtn = document.getElementById("connectionStatusBtn");
+        const simOfflineToggle = document.getElementById("simOfflineToggle");
+        const offlineBanner = document.getElementById("offlineBanner");
+        const queueCounter = document.getElementById("queueCounter");
+        const queueList = document.getElementById("queueList");
+        const logoutBtn = document.getElementById("logoutBtn");
+
+        const themeToggle = document.getElementById("themeToggle");
+        const emailToggle = document.getElementById("emailToggle");
+        const pushToggle = document.getElementById("pushToggle");
+        const toastContainer = document.getElementById("toastContainer");
+
+        // Notification Handles
+        const bellBtn = document.getElementById("bellBtn");
+        const notificationDropdown = document.getElementById("notificationDropdown");
+        const unreadBadge = document.getElementById("unreadBadge");
+        const notificationList = document.getElementById("notificationList");
+        const markAllReadBtn = document.getElementById("markAllReadBtn");
+
+        // Preference Handles
+        const prefWebsocketToggle = document.getElementById("prefWebsocketToggle");
+        const prefQuietStart = document.getElementById("prefQuietStart");
+        const prefQuietEnd = document.getElementById("prefQuietEnd");
+        const savePrefBtn = document.getElementById("savePrefBtn");
+
+        // Simulation Trigger Handles
+        const triggerTitle = document.getElementById("triggerTitle");
+        const triggerType = document.getElementById("triggerType");
+        const triggerBody = document.getElementById("triggerBody");
+        const triggerBtn = document.getElementById("triggerBtn");
+
+        // App Configurations
+        const MAX_RETRIES = 5;
+
+        // App States
+        let socket = null;
+        let reconnectAttempts = 0;
+        const maxReconnectAttempts = 10;
+        let reconnectTimeout = null;
+        let heartbeatInterval = null;
+        let isSimulatedOffline = false;
+        let isRegistering = false;
+
+        // Notification & Preferences State
+        let notificationsState = [];
+        let unreadCountState = 0;
+
+        let authState = {
+            accessToken: localStorage.getItem("access_token"),
+            refreshToken: localStorage.getItem("refresh_token"),
+            userId: localStorage.getItem("user_id"),
+            username: localStorage.getItem("username")
+        };
+
+        let settingsState = {
+            theme: "dark",
+            email_notifications: true,
+            push_notifications: true,
+            language: "en",
+            version: 0
+        };
+
+        // UUID Generator for mutations
+        function generateUUID() {
+            return 'mutation-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
+        }
+
+        // Show Toast Notification
+        function showToast(message, type = "success") {
+            const toast = document.createElement("div");
+            toast.className = `toast ${type}`;
+            toast.innerHTML = `<span class="toast-message">${message}</span>`;
+            toastContainer.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = 0;
+                setTimeout(() => toast.remove(), 300);
+            }, 4000);
+        }
+
+        // Toggle dropdown open/close
+        bellBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const isHidden = notificationDropdown.style.display === "none";
+            notificationDropdown.style.display = isHidden ? "flex" : "none";
+            if (isHidden) {
+                renderNotifications();
+            }
+        });
+
+        // Hide dropdown on document click
+        document.addEventListener("click", (e) => {
+            if (notificationDropdown && !notificationDropdown.contains(e.target) && !bellBtn.contains(e.target)) {
+                notificationDropdown.style.display = "none";
+            }
+        });
+
+        // Fetch Notifications and Unread Count
+        async function fetchNotifications() {
+            try {
+                // Fetch unread count first
+                const countRes = await secureFetch("/notifications/unread-count");
+                if (countRes.ok) {
+                    const countData = await countRes.json();
+                    unreadCountState = countData.unread_count;
+                    updateUnreadBadgeUI();
+                }
+
+                // Fetch list
+                const listRes = await secureFetch("/notifications/?limit=30");
+                if (listRes.ok) {
+                    notificationsState = await listRes.json();
+                    renderNotifications();
+                }
+            } catch (err) {
+                console.error("Failed to fetch notifications:", err);
+            }
+        }
+
+        // Update Unread Badge UI
+        function updateUnreadBadgeUI() {
+            if (unreadCountState > 0) {
+                unreadBadge.innerText = unreadCountState;
+                unreadBadge.style.display = "flex";
+            } else {
+                unreadBadge.style.display = "none";
+            }
+        }
+
+        // Render Notifications inside Dropdown
+        function renderNotifications() {
+            notificationList.innerHTML = "";
+            if (notificationsState.length === 0) {
+                notificationList.innerHTML = `<div class="empty-notifications">No new notifications</div>`;
+                return;
+            }
+
+            notificationsState.forEach(notif => {
+                const el = document.createElement("div");
+                el.className = `notification-item ${notif.is_read ? "" : "unread"}`;
+                
+                let icon = "🔔";
+                if (notif.type === "like") icon = "❤️";
+                if (notif.type === "comment") icon = "💬";
+                if (notif.type === "follow") icon = "👤";
+
+                const dateStr = new Date(notif.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+                el.innerHTML = `
+                    <div class="notif-icon-placeholder">${icon}</div>
+                    <div class="notif-content">
+                        <div class="notif-title">${escapeHTML(notif.title)}</div>
+                        <div class="notif-body">${escapeHTML(notif.body)}</div>
+                        <div class="notif-time">${dateStr}</div>
+                    </div>
+                `;
+
+                // Mark single notification read on click
+                el.addEventListener("click", async () => {
+                    if (!notif.is_read) {
+                        // Optimistic Update
+                        notif.is_read = true;
+                        if (unreadCountState > 0) unreadCountState--;
+                        updateUnreadBadgeUI();
+                        el.className = "notification-item";
+                        
+                        try {
+                            await secureFetch(`/notifications/read?notification_id=${notif.id}`, { method: "POST" });
+                        } catch (err) {
+                            console.error("Failed to mark read:", err);
+                        }
+                    }
+                });
+
+                notificationList.appendChild(el);
+            });
+        }
+
+        function escapeHTML(str) {
+            if (!str) return "";
+            return str.replace(/[&<>'"]/g, 
+                tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+            );
+        }
+
+        // Mark All Read Handler
+        markAllReadBtn.addEventListener("click", async () => {
+            // Optimistic Update
+            notificationsState.forEach(n => n.is_read = true);
+            unreadCountState = 0;
+            updateUnreadBadgeUI();
+            renderNotifications();
+
+            try {
+                await secureFetch("/notifications/read", { method: "POST" });
+                showToast("All notifications marked as read", "success");
+            } catch (err) {
+                console.error("Failed to mark all read:", err);
+            }
+        });
+
+        // Fetch user preferences
+        async function fetchPreferences() {
+            try {
+                const res = await secureFetch("/notifications/preferences");
+                if (res.ok) {
+                    const pref = await res.json();
+                    prefWebsocketToggle.checked = pref.websocket_enabled;
+                    prefQuietStart.value = pref.quiet_hours_start || "";
+                    prefQuietEnd.value = pref.quiet_hours_end || "";
+                }
+            } catch (err) {
+                console.error("Failed to fetch preferences:", err);
+            }
+        }
+
+        // Update preferences
+        savePrefBtn.addEventListener("click", async () => {
+            const websocket_enabled = prefWebsocketToggle.checked;
+            const quiet_hours_start = prefQuietStart.value.trim() || null;
+            const quiet_hours_end = prefQuietEnd.value.trim() || null;
+
+            // Simple validation
+            if (quiet_hours_start && !/^([01]\d|2[0-3]):([0-5]\d)$/.test(quiet_hours_start)) {
+                showToast("Invalid quiet hours start. Use format HH:MM (e.g. 22:00)", "error");
+                return;
+            }
+            if (quiet_hours_end && !/^([01]\d|2[0-3]):([0-5]\d)$/.test(quiet_hours_end)) {
+                showToast("Invalid quiet hours end. Use format HH:MM (e.g. 08:00)", "error");
+                return;
+            }
+
+            try {
+                const res = await secureFetch("/notifications/preferences", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        websocket_enabled,
+                        quiet_hours_start,
+                        quiet_hours_end
+                    })
+                });
+
+                if (res.ok) {
+                    showToast("Notification preferences updated successfully!", "success");
+                } else {
+                    throw new Error("Server rejected preferences update");
+                }
+            } catch (err) {
+                showToast(err.message, "error");
+            }
+        });
+
+        // Trigger simulation notification
+        triggerBtn.addEventListener("click", async () => {
+            const title = triggerTitle.value.trim();
+            const body = triggerBody.value.trim();
+            const type = triggerType.value;
+
+            if (!title || !body) {
+                showToast("Please fill in both title and body.", "error");
+                return;
+            }
+
+            try {
+                const res = await fetch("/notifications/trigger", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        user_id: authState.userId,
+                        type: type,
+                        title: title,
+                        body: body
+                    })
+                });
+
+                if (res.ok) {
+                    showToast("Event published to Kafka! Awaiting real-time consumer execution...", "success");
+                    triggerTitle.value = "";
+                    triggerBody.value = "";
+                } else {
+                    throw new Error("Failed to trigger simulated notification");
+                }
+            } catch (err) {
+                showToast(err.message, "error");
+            }
+        });
+
+        // ====================================================
+        // PART 10 — SECURE API REQUEST INTERCEPTOR (With Auto Token Refresh)
+        // ====================================================
+        async def = null; // Helper to avoid duplicate refresh calls in parallel fetches
+        async function secureFetch(url, options = {}) {
+            // Force authorization header
+            if (!authState.accessToken) {
+                handleLogout();
+                throw new Error("Unauthenticated request blocked locally");
+            }
+
+            options.headers = options.headers || {};
+            options.headers["Authorization"] = `Bearer ${authState.accessToken}`;
+
+            let res;
+            try {
+                res = await fetch(url, options);
+            } catch (err) {
+                // Network error, bubble it up to offline handler
+                throw err;
+            }
+
+            // If 401 Unauthorized, attempt Token Rotation (RTR) using refresh token
+            if (res.status === 401) {
+                console.warn("[AUTH INTERCEPTOR] Access token rejected with 401. Attempting refresh token renewal...");
+                const refreshed = await performTokenRefresh();
+                if (refreshed) {
+                    // Retry original call with fresh token!
+                    options.headers["Authorization"] = `Bearer ${authState.accessToken}`;
+                    return await fetch(url, options);
+                } else {
+                    handleLogout();
+                    throw new Error("Session expired. Please sign in again.");
+                }
+            }
+
+            return res;
+        }
+
+        async function performTokenRefresh() {
+            if (!authState.refreshToken) return false;
+            try {
+                const res = await fetch("/auth/refresh", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ refresh_token: authState.refreshToken })
+                });
+
+                if (!res.ok) {
+                    console.error("[AUTH INTERCEPTOR] Refresh token was rejected or revoked.");
+                    return false;
+                }
+
+                const data = await res.json();
+                saveAuthSession(data.access_token, data.refresh_token, authState.userId, authState.username);
+                console.log("[AUTH INTERCEPTOR] Tokens refreshed successfully!");
+                return true;
+            } catch (e) {
+                console.error("[AUTH INTERCEPTOR] Token refresh failed due to network exception:", e);
+                return false;
+            }
+        }
+
+        function saveAuthSession(access, refresh, userId, username) {
+            localStorage.setItem("access_token", access);
+            localStorage.setItem("refresh_token", refresh);
+            localStorage.setItem("user_id", userId);
+            localStorage.setItem("username", username);
+
+            authState = { accessToken: access, refreshToken: refresh, userId, username };
+        }
+
+        function clearAuthSession() {
+            localStorage.removeItem("access_token");
+            localStorage.removeItem("refresh_token");
+            localStorage.removeItem("user_id");
+            localStorage.removeItem("username");
+
+            authState = { accessToken: null, refreshToken: null, userId: null, username: null };
+        }
+
+        // Toggle Login / Register form views
+        authSwitchLink.addEventListener("click", () => {
+            isRegistering = !isRegistering;
+            if (isRegistering) {
+                authTitle.innerText = "Register Secure Account";
+                emailGroup.style.display = "flex";
+                authSubmitBtn.innerText = "Register";
+                authSwitchLink.innerHTML = "Already have an account? <span>Login</span>";
+            } else {
+                authTitle.innerText = "Secure Session Sign-In";
+                emailGroup.style.display = "none";
+                authSubmitBtn.innerText = "Login";
+                authSwitchLink.innerHTML = "Don't have an account? <span>Register</span>";
+            }
+        });
+
+        // Authentication Submission Handler
+        authSubmitBtn.addEventListener("click", async () => {
+            const username = authUsername.value.trim();
+            const password = authPassword.value.trim();
+            const email = authEmail.value.trim();
+
+            if (!username || !password || (isRegistering && !email)) {
+                showToast("Please fill in all details.", "error");
+                return;
+            }
+
+            try {
+                if (isRegistering) {
+                    // 1. Submit Registration
+                    const res = await fetch("/auth/register", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ username, email, password })
+                    });
+                    
+                    if (!res.ok) {
+                        const data = await res.json();
+                        throw new Error(data.detail || "Registration failed");
+                    }
+                    
+                    showToast("Account created successfully! Logging you in...", "success");
+                }
+
+                // 2. Perform Login Flow
+                const logRes = await fetch("/auth/login", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ username, password })
+                });
+
+                if (!logRes.ok) {
+                    const data = await logRes.json();
+                    throw new Error(data.detail || "Login failed");
+                }
+
+                const tokens = await logRes.json();
+                
+                // Fetch User Details to secure user_id claim
+                const userPayload = JSON.parse(atob(tokens.access_token.split('.')[1]));
+                const userId = userPayload.sub;
+
+                saveAuthSession(tokens.access_token, tokens.refresh_token, userId, username);
+                showToast(`Welcome back, ${username}!`, "success");
+
+                // Toggle views and connect
+                transitionToDashboard();
+
+            } catch (err) {
+                showToast(err.message, "error");
+            }
+        });
+
+        function transitionToDashboard() {
+            authCard.style.display = "none";
+            appCard.style.display = "flex";
+
+            usernameDisplay.innerText = authState.username;
+            userIdDisplay.innerText = `User ID: ${authState.userId}`;
+            userAvatar.innerText = authState.username.substring(0, 1).toUpperCase();
+
+            // Fetch baseline settings, preferences, active notifications, and establish WS
+            fetchSettings(authState.userId);
+            fetchPreferences();
+            fetchNotifications();
+            fetchActiveRelationships();
+            fetchFeatureFlags();
+            connectWebSocket();
+        }
+
+        // Clean user logout
+        async function handleLogout() {
+            stopHeartbeat();
+            if (socket) {
+                socket.onclose = null;
+                socket.close();
+                socket = null;
+            }
+
+            if (authState.refreshToken) {
+                try {
+                    await fetch("/auth/logout", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ refresh_token: authState.refreshToken })
+                    });
+                } catch (e) {}
+            }
+
+            clearAuthSession();
+            statusDot.className = "status-dot offline";
+            statusText.innerText = "Offline";
+
+            appCard.style.display = "none";
+            authCard.style.display = "flex";
+            authPassword.value = "";
+            showToast("Logged out successfully.", "warning");
+        }
+
+        logoutBtn.addEventListener("click", handleLogout);
+
+        // ====================================================
+        // PART 1 & 7 — OFFLINE MUTATION JOURNAL (Durable Store)
+        // ====================================================
+        class OfflineJournal {
+            constructor() {
+                this.storageKey = "settings_mutation_journal";
+            }
+
+            getQueue() {
+                try {
+                    const queueStr = localStorage.getItem(this.storageKey);
+                    return queueStr ? JSON.parse(queueStr) : [];
+                } catch (e) {
+                    console.error("Failed to read mutation journal:", e);
+                    return [];
+                }
+            }
+
+            saveQueue(queue) {
+                try {
+                    localStorage.setItem(this.storageKey, JSON.stringify(queue));
+                    this.renderQueueUI(queue);
+                } catch (e) {
+                    console.error("Failed to save mutation journal:", e);
+                }
+            }
+
+            push(userId, key, value, expectedVersion) {
+                const queue = this.getQueue();
+                const mutation = {
+                    id: generateUUID(),
+                    user_id: userId,
+                    key: key,
+                    value: value,
+                    expected_version: expectedVersion,
+                    timestamp: Math.floor(Date.now() / 1000),
+                    retry_count: 0,
+                    status: "pending"
+                };
+                queue.push(mutation);
+                this.saveQueue(queue);
+                console.log(`[JOURNAL LOG] Mutation queued: ID=${mutation.id} | Key=${key} | Val=${value}`);
+                showToast(`Offline change queued. Journal depth: ${queue.length}`, "warning");
+                return mutation;
+            }
+
+            remove(id) {
+                let queue = this.getQueue();
+                queue = queue.filter(item => item.id !== id);
+                this.saveQueue(queue);
+            }
+
+            update(id, updates) {
+                const queue = this.getQueue();
+                const item = queue.find(x => x.id === id);
+                if (item) {
+                    Object.assign(item, updates);
+                    this.saveQueue(queue);
+                }
+            }
+
+            renderQueueUI(queue) {
+                queueCounter.innerText = `Queue Depth: ${queue.length}`;
+                queueList.innerHTML = "";
+                
+                if (queue.length === 0) {
+                    queueList.innerHTML = `<div class="empty-text">No pending mutations in journal</div>`;
+                    return;
+                }
+
+                queue.forEach(item => {
+                    const el = document.createElement("div");
+                    el.className = `queue-item ${item.status}`;
+                    el.innerHTML = `
+                        <span>${item.key}=${item.value} (exp:${item.expected_version})</span>
+                        <span style="text-transform:uppercase; font-weight:700;">${item.status}</span>
+                    `;
+                    queueList.appendChild(el);
+                });
+            }
+        }
+
+        const journal = new OfflineJournal();
+
+        // Seeding database initial fetch
+        async function fetchSettings(userId) {
+            if (isSimulatedOffline || !navigator.onLine) {
+                console.log("[RECONCILIATION] Offline. Hydrating from local cached state...");
+                return;
+            }
+            try {
+                const res = await secureFetch(`/settings/${userId}`);
+                if (!res.ok) throw new Error("Database connection error");
+                const data = await res.json();
+                
+                // Server baseline comparison
+                if (data.version > settingsState.version) {
+                    console.log(`[RECONCILIATION] Server version (${data.version}) newer than client (${settingsState.version}). Hydrating state.`);
+                    settingsState = { ...data };
+                    updateUIState(settingsState);
+                }
+            } catch (err) {
+                console.error("Fetch error:", err);
+            }
+        }
+
+        // Apply state variables onto DOM Elements
+        function updateUIState(state) {
+            themeToggle.checked = state.theme === "light";
+            emailToggle.checked = state.email_notifications;
+            pushToggle.checked = state.push_notifications;
+            versionBadge.innerText = `Ver: ${state.version}`;
+        }
+
+        // ====================================================
+        // PART 9 — SECURE SEQUENTIAL REPLAY ENGINE
+        // ====================================================
+        class ReplayEngine {
+            constructor() {
+                this.isReplaying = false;  // Mutex lock
+                this.retryTimer = null;
+            }
+
+            async startReplay() {
+                // Mutex Guard
+                if (this.isReplaying) {
+                    console.log("[REPLAY ENGINE] Mutex Lock: Replay already in progress. Ignoring triggers.");
+                    return;
+                }
+
+                const queue = journal.getQueue();
+                if (queue.length === 0) return;
+
+                // Acquire Mutex
+                this.isReplaying = true;
+                console.log(`[REPLAY ENGINE] Mutex Acquired. Commencing replay loop for ${queue.length} mutations.`);
+
+                // Step 1: Sync client before replay
+                await fetchSettings(authState.userId);
+
+                for (let i = 0; i < queue.length; i++) {
+                    const mutation = queue[i];
+                    
+                    // Stop if offline
+                    if (isSimulatedOffline || !navigator.onLine) {
+                        console.warn("[REPLAY ENGINE] Network disconnected during replay. Halting execution.");
+                        break;
+                    }
+
+                    // Enforce user ownership safety on mutation replay
+                    if (mutation.user_id !== authState.userId) {
+                        console.error(`[SECURITY] Rejecting mutation replay: user ownership mismatch (mutation: ${mutation.user_id} vs self: ${authState.userId})`);
+                        journal.remove(mutation.id);
+                        continue;
+                    }
+
+                    journal.update(mutation.id, { status: "replaying" });
+                    
+                    const currentExpected = Math.max(mutation.expected_version, settingsState.version);
+
+                    const payload = {
+                        user_id: mutation.user_id,
+                        theme: settingsState.theme,
+                        email_notifications: settingsState.email_notifications,
+                        push_notifications: settingsState.push_notifications,
+                        language: settingsState.language,
+                        expected_version: currentExpected
+                    };
+                    payload[mutation.key] = mutation.value;
+
+                    try {
+                        console.log(`[REPLAY ENGINE] Dispatching replayed mutation ID: ${mutation.id} | expected_version: ${currentExpected}`);
+                        const res = await secureFetch("/settings/update", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify(payload)
+                        });
+
+                        // Version Conflict 409 check
+                        if (res.status === 409) {
+                            const errPayload = await res.json();
+                            const detail = errPayload.detail;
+                            
+                            if (detail && detail.error === "VERSION_CONFLICT") {
+                                console.error(`[OCC CONFLICT] Replay ID ${mutation.id} conflicted! Rollback initiated.`);
+                                
+                                journal.update(mutation.id, { status: "conflicted" });
+                                showToast(`Sync Error: Version conflict on replay! State rolled back.`, "error");
+                                
+                                settingsState.theme = detail.current_state.theme;
+                                settingsState.email_notifications = detail.current_state.email_notifications;
+                                settingsState.push_notifications = detail.current_state.push_notifications;
+                                settingsState.version = detail.current_version;
+                                updateUIState(settingsState);
+                                
+                                journal.remove(mutation.id);
+                                break;
+                            }
+                        }
+
+                        if (!res.ok) throw new Error("Server communication failure");
+
+                        const updatedData = await res.json();
+                        settingsState.version = updatedData.version;
+                        settingsState[mutation.key] = mutation.value;
+                        updateUIState(settingsState);
+
+                        console.log(`[REPLAY ENGINE] Replay success: ID=${mutation.id} | Server Version: ${settingsState.version}`);
+                        journal.remove(mutation.id);
+                        showToast(`Sync complete: Replayed change successfully!`, "success");
+
+                    } catch (err) {
+                        console.error(`[REPLAY ENGINE] Transient error executing mutation ${mutation.id}:`, err);
+                        
+                        const newRetryCount = mutation.retry_count + 1;
+                        if (newRetryCount >= MAX_RETRIES) {
+                            console.error(`[REPLAY ENGINE] Mutation ID ${mutation.id} exceeded retry cap.`);
+                            journal.update(mutation.id, { status: "failed" });
+                            journal.remove(mutation.id);
+                            showToast(`Sync failed: Stale change discarded.`, "error");
+                        } else {
+                            journal.update(mutation.id, { 
+                                status: "pending", 
+                                retry_count: newRetryCount 
+                            });
+
+                            const backoff = Math.min(30000, 1000 * Math.pow(2, newRetryCount)) + (Math.random() * 1000 - 500);
+                            clearTimeout(this.retryTimer);
+                            this.retryTimer = setTimeout(() => {
+                                this.startReplay();
+                            }, backoff);
+                        }
+                        break; // Halt preserve order
+                    }
+                }
+
+                this.isReplaying = false;
+                console.log("[REPLAY ENGINE] Mutex Released.");
+            }
+        }
+
+        const replayer = new ReplayEngine();
+
+        // Optimistic UI updates with offline-safe queueing
+        async function performUpdate(key, checked) {
+            const previousState = { ...settingsState };
+            
+            const newValue = key === "theme" ? (checked ? "light" : "dark") : checked;
+
+            if (key === "theme") settingsState.theme = newValue;
+            if (key === "email_notifications") settingsState.email_notifications = newValue;
+            if (key === "push_notifications") settingsState.push_notifications = newValue;
+            
+            updateUIState(settingsState);
+
+            // Check if Offline
+            if (isSimulatedOffline || !navigator.onLine) {
+                const keyName = key === "theme" ? "theme" : (key === "email_notifications" ? "email_notifications" : "push_notifications");
+                journal.push(authState.userId, keyName, newValue, previousState.version);
+                return;
+            }
+
+            const payload = {
+                user_id: authState.userId,
+                theme: settingsState.theme,
+                email_notifications: settingsState.email_notifications,
+                push_notifications: settingsState.push_notifications,
+                language: settingsState.language,
+                expected_version: previousState.version
+            };
+
+            try {
+                const res = await secureFetch("/settings/update", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload)
+                });
+                
+                if (res.status === 409) {
+                    const errPayload = await res.json();
+                    const detail = errPayload.detail;
+                    if (detail && detail.error === "VERSION_CONFLICT") {
+                        showToast(`OCC Collision! State rolled back.`, "error");
+                        
+                        settingsState.theme = detail.current_state.theme;
+                        settingsState.email_notifications = detail.current_state.email_notifications;
+                        settingsState.push_notifications = detail.current_state.push_notifications;
+                        settingsState.version = detail.current_version;
+                        
+                        updateUIState(settingsState);
+                        return;
+                    }
+                }
+
+                if (!res.ok) throw new Error("Server rejected update");
+
+                const updatedData = await res.json();
+                settingsState.version = updatedData.version;
+                updateUIState(settingsState);
+                showToast(`Saved. Version: ${settingsState.version}`, "success");
+            } catch (err) {
+                console.warn("[NETWORK DROP] Failed to write settings. Queueing into journal...");
+                const keyName = key === "theme" ? "theme" : (key === "email_notifications" ? "email_notifications" : "push_notifications");
+                journal.push(authState.userId, keyName, newValue, previousState.version);
+            }
+        }
+
+        // Establish secure WebSocket connection using query token authentication
+        function connectWebSocket() {
+            if (isSimulatedOffline) {
+                console.log("[WEBSOCKET] Simulated offline. Skipping connection.");
+                return;
+            }
+
+            if (!authState.accessToken) return;
+
+            if (socket) {
+                try {
+                    socket.onopen = null;
+                    socket.onmessage = null;
+                    socket.onclose = null;
+                    socket.onerror = null;
+                    socket.close();
+                } catch (e) {}
+                socket = null;
+            }
+
+            statusDot.className = "status-dot connecting";
+            statusText.innerText = "Connecting";
+
+            const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+            // Enforce token parameter in URL path query for WebSocket server authentication
+            const wsUrl = `${protocol}//${window.location.host}/ws/events?token=${authState.accessToken}`;
+            
+            socket = new WebSocket(wsUrl);
+
+            socket.onopen = () => {
+                reconnectAttempts = 0;
+                statusDot.className = "status-dot online";
+                statusText.innerText = "Online";
+                showToast("Secure realtime channel established!", "success");
+                
+                startHeartbeat();
+                replayer.startReplay();
+            };
+
+            socket.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    
+                    // Trigger dynamic eviction if auth gets blacklisted during active heartbeat
+                    if (data.error === "SESSION_REVOKED") {
+                        showToast("Session invalidated from server. Logging out...", "error");
+                        handleLogout();
+                        return;
+                    }
+
+                    if (data.error === "AUTHENTICATION_FAILED") {
+                        console.error("[WEBSOCKET AUTH] Websocket was rejected by server auth validation.");
+                        socket.close();
+                        return;
+                    }
+
+                    if (data.type === "pong") return;
+                    
+                    if (data.event === "user.setting.updated") {
+                        const payload = data.payload;
+                        
+                        // Strict user ownership check
+                        if (payload.user_id === authState.userId) {
+                            if (payload.version > settingsState.version) {
+                                settingsState = { ...payload };
+                                updateUIState(settingsState);
+                                showToast(`Sync: Settings updated to version ${payload.version}!`, "warning");
+                            }
+                        }
+                    }
+
+                    if (data.event === "user.notification.created") {
+                        const payload = data.payload;
+                        
+                        // Strict user ownership check
+                        if (payload.user_id === authState.userId) {
+                            // Increment unread count
+                            unreadCountState++;
+                            updateUnreadBadgeUI();
+                            
+                            // Add to list array
+                            notificationsState.unshift(payload);
+                            renderNotifications();
+                            
+                            // Visual Alert
+                            let toastIcon = "🔔";
+                            if (payload.type === "like") toastIcon = "❤️";
+                            if (payload.type === "comment") toastIcon = "💬";
+                            if (payload.type === "follow") toastIcon = "👤";
+                            
+                            showToast(`${toastIcon} <strong>${escapeHTML(payload.title)}</strong>: ${escapeHTML(payload.body)}`, "warning");
+                        }
+                    }
+
+                    if (data.event === "user.relationship.updated") {
+                        const payload = data.payload;
+                        // Refresh active relationships in real-time
+                        showToast(`🔄 Realtime Relationship Sync: '${payload.edge_type}' edge updated for user ${payload.source_user_id}!`, "warning");
+                        fetchActiveRelationships();
+                    }
+
+                    if (data.event === "feature.updated") {
+                        const payload = data.payload;
+                        showToast(`⚡ Realtime Feature Config Propagated: '${payload.feature_name}' rollout set to ${payload.rollout_percentage}%! (Enabled: ${payload.enabled})`, "success");
+                        fetchFeatureFlags();
+                    }
+                } catch (e) {
+                    console.log("WebSocket message:", event.data);
+                }
+            };
+
+            socket.onclose = async (event) => {
+                stopHeartbeat();
+                statusDot.className = "status-dot offline";
+                statusText.innerText = "Offline";
+                
+                // If WS closed with auth code error, retry authentication loop first!
+                if (event.code === 3000) {
+                    console.warn("[WEBSOCKET AUTH] Connection rejected due to invalid token. Initiating refresh sequence...");
+                    const refreshed = await performTokenRefresh();
+                    if (refreshed && !isSimulatedOffline) {
+                        connectWebSocket();
+                    } else {
+                        handleLogout();
+                    }
+                    return;
+                }
+
+                if (!isSimulatedOffline) {
+                    triggerReconnect();
+                }
+            };
+
+            socket.onerror = (err) => {
+                console.error("WebSocket socket failure:", err);
+                socket.close();
+            };
+        }
+
+        // Exponential backoff reconnect manager
+        function triggerReconnect() {
+            if (reconnectAttempts >= maxReconnectAttempts) {
+                statusDot.className = "status-dot offline";
+                statusText.innerText = "Failed";
+                showToast("Connection lost. Click indicator to reconnect manually.", "error");
+                return;
+            }
+
+            const backoffTime = Math.min(30000, 1000 * Math.pow(2, reconnectAttempts));
+            reconnectAttempts++;
+            
+            statusDot.className = "status-dot connecting";
+            statusText.innerText = `Retrying (${reconnectAttempts}/${maxReconnectAttempts})`;
+            
+            clearTimeout(reconnectTimeout);
+            reconnectTimeout = setTimeout(() => {
+                connectWebSocket();
+            }, backoffTime);
+        }
+
+        // Heartbeat Keepalive Management
+        function startHeartbeat() {
+            clearInterval(heartbeatInterval);
+            heartbeatInterval = setInterval(() => {
+                if (socket && socket.readyState === WebSocket.OPEN) {
+                    socket.send(JSON.stringify({ type: "ping" }));
+                }
+            }, 10000);
+        }
+
+        function stopHeartbeat() {
+            clearInterval(heartbeatInterval);
+        }
+
+        // Browser refocus catch-up trigger
+        document.addEventListener("visibilitychange", () => {
+            if (document.visibilityState === "visible" && authState.accessToken) {
+                fetchSettings(authState.userId);
+                replayer.startReplay();
+            }
+        });
+
+        // Network state listeners
+        window.addEventListener("online", () => {
+            if (isSimulatedOffline) return;
+            reconnectAttempts = 0;
+            offlineBanner.className = "offline-banner";
+            showToast("Network connection restored.", "success");
+            if (authState.accessToken) {
+                connectWebSocket();
+            }
+        });
+
+        window.addEventListener("offline", () => {
+            offlineBanner.className = "offline-banner active";
+            statusDot.className = "status-dot offline";
+            statusText.innerText = "Offline";
+            showToast("Network connection lost. Operating offline.", "error");
+        });
+
+        // Simulated offline check listener
+        simOfflineToggle.addEventListener("change", (e) => {
+            isSimulatedOffline = e.target.checked;
+            if (isSimulatedOffline) {
+                offlineBanner.className = "offline-banner active";
+                statusDot.className = "status-dot offline";
+                statusText.innerText = "Offline";
+                showToast("Simulation: Client disconnected from network.", "error");
+                
+                stopHeartbeat();
+                if (socket) {
+                    socket.close();
+                }
+            } else {
+                offlineBanner.className = "offline-banner";
+                showToast("Simulation: Client restored online connection.", "success");
+                if (authState.accessToken) {
+                    connectWebSocket();
+                }
+            }
+        });
+
+        // Manual reconnect click trigger
+        connectionStatusBtn.addEventListener("click", () => {
+            if (isSimulatedOffline) {
+                showToast("Please disable Simulated Offline first!", "warning");
+                return;
+            }
+            reconnectAttempts = 0;
+            connectWebSocket();
+        });
+
+        // Toggle Listeners
+        themeToggle.addEventListener("change", (e) => performUpdate("theme", e.target.checked));
+        emailToggle.addEventListener("change", (e) => performUpdate("email_notifications", e.target.checked));
+        pushToggle.addEventListener("change", (e) => performUpdate("push_notifications", e.target.checked));
+
+        // Sync local storage across browser tabs (Single-tab logout check)
+        window.addEventListener("storage", (event) => {
+            if (event.key === "access_token" && !event.newValue) {
+                // Another tab performed logout! Log out this tab as well!
+                handleLogout();
+            }
+        });
+
+        // ====================================================
+        // PART 9 — PRIVACY GRAPH CONTROL CENTER HANDLERS
+        // ====================================================
+        const privacyTargetUser = document.getElementById("privacyTargetUser");
+        const privacyEdgeType = document.getElementById("privacyEdgeType");
+        const privacyAddBtn = document.getElementById("privacyAddBtn");
+        const privacyRemoveBtn = document.getElementById("privacyRemoveBtn");
+        const privacyLookupBtn = document.getElementById("privacyLookupBtn");
+        const relationshipResult = document.getElementById("relationshipResult");
+        const privacyRefreshBlocksBtn = document.getElementById("privacyRefreshBlocksBtn");
+        const blockedUsersList = document.getElementById("blockedUsersList");
+
+        async function fetchActiveRelationships() {
+            try {
+                const edgeTypes = ["blocked", "muted", "restricted", "close_friend", "favorite"];
+                let html = "";
+                
+                for (const type of edgeTypes) {
+                    const res = await secureFetch(`/graph/edges/${type}`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (data && data.length > 0) {
+                            data.forEach(edge => {
+                                const color = type === "blocked" ? "#ef4444" : (type === "muted" ? "#f59e0b" : "#10b981");
+                                html += `
+                                    <span style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); padding: 4px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px;">
+                                        <span style="font-weight: 600; color: #f4f4f5;">ID ${escapeHTML(edge.target_user_id)}</span>: 
+                                        <span style="color: ${color}; font-size: 10px; text-transform: uppercase; font-weight: 700;">${type}</span>
+                                    </span>
+                                `;
+                            });
+                        }
+                    }
+                }
+                
+                blockedUsersList.innerHTML = html || `<div style="font-style: italic; font-size: 10px; color: var(--text-secondary);">No active relationships found</div>`;
+            } catch (err) {
+                console.error("Failed to fetch relationships:", err);
+            }
+        }
+
+        privacyAddBtn.addEventListener("click", async () => {
+            const targetId = privacyTargetUser.value.trim();
+            const edgeType = privacyEdgeType.value;
+            if (!targetId) {
+                showToast("Please specify a Target User ID", "error");
+                return;
+            }
+
+            // Optimistic UI update toast
+            showToast(`Applying ${edgeType} relationship with User ${targetId}...`, "warning");
+
+            try {
+                const res = await secureFetch("/graph/edge", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ target_user_id: targetId, edge_type: edgeType })
+                });
+
+                if (res.ok) {
+                    showToast(`Successfully created ${edgeType} edge to User ${targetId}!`, "success");
+                    privacyTargetUser.value = "";
+                    await fetchActiveRelationships();
+                } else {
+                    const data = await res.json();
+                    showToast(data.detail || "Failed to create edge", "error");
+                }
+            } catch (err) {
+                showToast("Failed to establish relationship", "error");
+            }
+        });
+
+        privacyRemoveBtn.addEventListener("click", async () => {
+            const targetId = privacyTargetUser.value.trim();
+            const edgeType = privacyEdgeType.value;
+            if (!targetId) {
+                showToast("Please specify a Target User ID", "error");
+                return;
+            }
+
+            try {
+                const res = await secureFetch("/graph/edge", {
+                    method: "DELETE",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ target_user_id: targetId, edge_type: edgeType })
+                });
+
+                if (res.ok) {
+                    showToast(`Removed ${edgeType} relationship with User ${targetId}.`, "success");
+                    privacyTargetUser.value = "";
+                    await fetchActiveRelationships();
+                } else {
+                    const data = await res.json();
+                    showToast(data.detail || "Failed to remove edge", "error");
+                }
+            } catch (err) {
+                showToast("Failed to remove relationship", "error");
+            }
+        });
+
+        privacyLookupBtn.addEventListener("click", async () => {
+            const targetId = privacyTargetUser.value.trim();
+            if (!targetId) {
+                showToast("Please specify a Target User ID", "error");
+                return;
+            }
+
+            try {
+                const res = await secureFetch(`/graph/relationship/${targetId}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    relationshipResult.style.display = "flex";
+                    relationshipResult.innerHTML = `
+                        <div style="font-weight: 600; color: #f4f4f5; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 4px; margin-bottom: 4px;">Relationship Status with ID ${targetId}</div>
+                        <div>Blocked: <span style="font-weight:700; color:${data.blocked ? "#ef4444" : "#a1a1aa"}">${data.blocked ? "YES" : "NO"}</span></div>
+                        <div>Muted: <span style="font-weight:700; color:${data.muted ? "#f59e0b" : "#a1a1aa"}">${data.muted ? "YES" : "NO"}</span></div>
+                        <div>Restricted: <span style="font-weight:700; color:${data.restricted ? "#10b981" : "#a1a1aa"}">${data.restricted ? "YES" : "NO"}</span></div>
+                        <div>Close Friend: <span style="font-weight:700; color:${data.close_friend ? "#6366f1" : "#a1a1aa"}">${data.close_friend ? "YES" : "NO"}</span></div>
+                        <div>Favorite: <span style="font-weight:700; color:${data.favorite ? "#d946ef" : "#a1a1aa"}">${data.favorite ? "YES" : "NO"}</span></div>
+                    `;
+                } else {
+                    showToast("Failed to fetch relationship status", "error");
+                }
+            } catch (err) {
+                showToast("Query lookup error", "error");
+            }
+        });
+
+        privacyRefreshBlocksBtn.addEventListener("click", async () => {
+            await fetchActiveRelationships();
+            showToast("Active relationships refreshed", "success");
+        });
+
+        // ====================================================
+        // PART 10 — FEATURE FLAGS CONTROL CENTER HANDLERS
+        // ====================================================
+        const flagNameInput = document.getElementById("flagNameInput");
+        const flagRolloutInput = document.getElementById("flagRolloutInput");
+        const flagEnabledInput = document.getElementById("flagEnabledInput");
+        const flagConfigInput = document.getElementById("flagConfigInput");
+        const flagRuleTypeInput = document.getElementById("flagRuleTypeInput");
+        const flagRuleValueInput = document.getElementById("flagRuleValueInput");
+        const saveFeatureBtn = document.getElementById("saveFeatureBtn");
+        const featuresRefreshBtn = document.getElementById("featuresRefreshBtn");
+        const featuresListContainer = document.getElementById("featuresListContainer");
+        const evalFlagName = document.getElementById("evalFlagName");
+        const evalUserId = document.getElementById("evalUserId");
+        const evalSubmitBtn = document.getElementById("evalSubmitBtn");
+        const evalResultContainer = document.getElementById("evalResultContainer");
+
+        async function fetchFeatureFlags() {
+            try {
+                const res = await secureFetch("/features");
+                if (res.ok) {
+                    const flags = await res.json();
+                    let html = "";
+                    if (flags.length === 0) {
+                        featuresListContainer.innerHTML = `<div style="font-style: italic; font-size: 10px; color: var(--text-secondary);">No feature flags registered</div>`;
+                        return;
+                    }
+                    flags.forEach(flag => {
+                        const isKilled = !flag.enabled;
+                        const ruleText = flag.rules && flag.rules.length > 0 ? 
+                            flag.rules.map(r => `${r.rule_type}=${r.rule_value}`).join(", ") : "None";
+                        
+                        // Safely stringify config & rules for attribute binding
+                        const configEscaped = btoa(unescape(encodeURIComponent(flag.config_json || "")));
+                        const rulesEscaped = btoa(unescape(encodeURIComponent(JSON.stringify(flag.rules || []))));
+
+                        html += `
+                            <div style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); padding: 12px; border-radius: 12px; display: flex; flex-direction: column; gap: 8px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <span style="font-weight: 600; font-size: 12px; color: ${isKilled ? 'var(--text-secondary)' : '#6366f1'}; text-decoration: ${isKilled ? 'line-through' : 'none'};">${escapeHTML(flag.feature_name)}</span>
+                                    <div style="display: flex; gap: 6px;">
+                                        <button class="auth-btn" onclick="quickKillSwitch('${escapeHTML(flag.feature_name)}', ${flag.enabled})" style="padding: 4px 8px; font-size: 9px; border-radius: 4px; margin: 0; width: auto; background: ${isKilled ? 'var(--success)' : 'var(--error)'};">
+                                            ${isKilled ? 'Reactivate' : 'Kill (Disable)'}
+                                        </button>
+                                        <button class="auth-btn" onclick="populateEditForm('${escapeHTML(flag.feature_name)}', ${flag.enabled}, ${flag.rollout_percentage}, '${configEscaped}', '${rulesEscaped}')" style="padding: 4px 8px; font-size: 9px; border-radius: 4px; margin: 0; width: auto; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08);">
+                                            Edit
+                                        </button>
+                                    </div>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <span style="font-size: 10px; color: var(--text-secondary); min-width: 60px;">Rollout: ${flag.rollout_percentage}%</span>
+                                    <input type="range" min="0" max="100" value="${flag.rollout_percentage}" 
+                                        onchange="quickRolloutUpdate('${escapeHTML(flag.feature_name)}', this.value, ${flag.enabled})"
+                                        style="flex: 1; height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; outline: none; -webkit-appearance: none;">
+                                </div>
+                                <div style="font-size: 10px; color: var(--text-secondary); display: flex; flex-direction: column; gap: 2px;">
+                                    <div>Rules: <span style="color: #10b981; font-weight: 600;">${escapeHTML(ruleText)}</span></div>
+                                    ${flag.config_json ? `<div>Config: <span style="font-family: monospace; color: #a1a1aa;">${escapeHTML(flag.config_json.substring(0, 50))}${flag.config_json.length > 50 ? '...' : ''}</span></div>` : ''}
+                                </div>
+                            </div>
+                        `;
+                    });
+                    featuresListContainer.innerHTML = html;
+                }
+            } catch (err) {
+                console.error("Failed to load feature flags:", err);
+            }
+        }
+
+        window.populateEditForm = function(name, enabled, rollout, configB64, rulesB64) {
+            flagNameInput.value = name;
+            flagRolloutInput.value = rollout;
+            flagEnabledInput.value = enabled ? "true" : "false";
+            try {
+                // Config
+                const configStr = decodeURIComponent(escape(atob(configB64)));
+                flagConfigInput.value = configStr;
+            } catch (e) {
+                flagConfigInput.value = "";
+            }
+            try {
+                // Rules
+                const rulesStr = decodeURIComponent(escape(atob(rulesB64)));
+                const rules = JSON.parse(rulesStr);
+                if (rules && rules.length > 0) {
+                    flagRuleTypeInput.value = rules[0].rule_type;
+                    flagRuleValueInput.value = rules[0].rule_value;
+                } else {
+                    flagRuleTypeInput.value = "";
+                    flagRuleValueInput.value = "";
+                }
+            } catch (e) {
+                flagRuleTypeInput.value = "";
+                flagRuleValueInput.value = "";
+            }
+            showToast(`Form populated with feature '${name}' details.`, "success");
+        };
+
+        window.quickKillSwitch = async function(name, currentlyEnabled) {
+            try {
+                const res = await secureFetch(`/features/kill-switch?feature_name=${encodeURIComponent(name)}`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ enabled: !currentlyEnabled })
+                });
+                if (res.ok) {
+                    showToast(`Toggled feature '${name}' active state to ${!currentlyEnabled}`, "success");
+                    await fetchFeatureFlags();
+                } else {
+                    const data = await res.json();
+                    showToast(data.detail || "Failed to toggle kill switch", "error");
+                }
+            } catch (err) {
+                showToast("Connection failure toggling feature", "error");
+            }
+        };
+
+        window.quickRolloutUpdate = async function(name, newRollout, enabledState) {
+            try {
+                const res = await secureFetch(`/features/update?feature_name=${encodeURIComponent(name)}`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ rollout_percentage: parseInt(newRollout), enabled: enabledState })
+                });
+                if (res.ok) {
+                    showToast(`Updated rollout for '${name}' to ${newRollout}%!`, "success");
+                    await fetchFeatureFlags();
+                } else {
+                    showToast("Failed to update rollout", "error");
+                }
+            } catch (e) {
+                showToast("Connection failure updating rollout", "error");
+            }
+        };
+
+        saveFeatureBtn.addEventListener("click", async () => {
+            const featureName = flagNameInput.value.trim();
+            const rollout = parseInt(flagRolloutInput.value);
+            const enabled = flagEnabledInput.value === "true";
+            const configStr = flagConfigInput.value.trim();
+            const ruleType = flagRuleTypeInput.value;
+            const ruleValue = flagRuleValueInput.value.trim();
+
+            if (!featureName) {
+                showToast("Feature Name is required", "error");
+                return;
+            }
+
+            const rules = ruleType && ruleValue ? [{ rule_type: ruleType, rule_value: ruleValue }] : [];
+
+            // First check if we are updating or creating (check local list UI text)
+            let isUpdate = false;
+            try {
+                const containerText = featuresListContainer.innerText;
+                if (containerText.includes(featureName)) {
+                    isUpdate = true;
+                }
+            } catch(e) {}
+
+            try {
+                let res;
+                if (isUpdate) {
+                    res = await secureFetch(`/features/update?feature_name=${encodeURIComponent(featureName)}`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            enabled: enabled,
+                            rollout_percentage: rollout,
+                            config_json: configStr || null,
+                            rules: rules
+                        })
+                    });
+                } else {
+                    res = await secureFetch("/features/create", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            feature_name: featureName,
+                            enabled: enabled,
+                            rollout_percentage: rollout,
+                            config_json: configStr || null,
+                            rules: rules
+                        })
+                    });
+                }
+
+                if (res.ok) {
+                    showToast(`Gatekeeper flag '${featureName}' successfully saved!`, "success");
+                    flagNameInput.value = "";
+                    flagRolloutInput.value = "0";
+                    flagConfigInput.value = "";
+                    flagRuleTypeInput.value = "";
+                    flagRuleValueInput.value = "";
+                    await fetchFeatureFlags();
+                } else {
+                    const data = await res.json();
+                    showToast(data.detail || "Failed to save feature flag", "error");
+                }
+            } catch (err) {
+                showToast("Save operation failed", "error");
+            }
+        });
+
+        featuresRefreshBtn.addEventListener("click", async () => {
+            await fetchFeatureFlags();
+            showToast("Feature flags list refreshed.", "success");
+        });
+
+        evalSubmitBtn.addEventListener("click", async () => {
+            const name = evalFlagName.value.trim();
+            const uidOverride = evalUserId.value.trim();
+            if (!name) {
+                showToast("Flag Name is required for evaluation", "error");
+                return;
+            }
+
+            try {
+                let url = `/features/evaluate/${encodeURIComponent(name)}`;
+                if (uidOverride) {
+                    url += `?user_id=${encodeURIComponent(uidOverride)}`;
+                }
+                const res = await secureFetch(url);
+                if (res.ok) {
+                    const data = await res.json();
+                    evalResultContainer.style.display = "block";
+                    const statusColor = data.enabled ? "var(--success)" : "var(--error)";
+                    evalResultContainer.innerHTML = `
+                        <div style="font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 4px; margin-bottom: 6px;">Evaluation: ${escapeHTML(name)}</div>
+                        <div>Target User: <span style="font-weight:700; color:white;">${escapeHTML(uidOverride || authState.username)}</span></div>
+                        <div>Status: <span style="font-weight:700; color:${statusColor};">${data.enabled ? 'ACTIVE (ENABLED)' : 'INACTIVE (DISABLED)'}</span></div>
+                        <div>Variant: <span style="font-weight:700; color:#d946ef;">${escapeHTML(data.variant)}</span></div>
+                        ${Object.keys(data.config).length > 0 ? `
+                            <div style="margin-top: 4px;">
+                                <div>Config Payload:</div>
+                                <pre style="background: rgba(0,0,0,0.3); padding: 6px; border-radius: 6px; font-family: monospace; font-size: 10px; margin-top: 2px; overflow-x: auto; color: #a1a1aa;">${escapeHTML(JSON.stringify(data.config, null, 2))}</pre>
+                            </div>
+                        ` : ''}
+                    `;
+                } else {
+                    const errData = await res.json();
+                    showToast(errData.detail || "Failed to evaluate flag", "error");
+                }
+            } catch (err) {
+                showToast("Evaluation request error", "error");
+            }
+        });
+
+        // Initialize App
+        const init = () => {
+            journal.renderQueueUI(journal.getQueue());
+            
+            if (authState.accessToken) {
+                transitionToDashboard();
+            } else {
+                appCard.style.display = "none";
+                authCard.style.display = "flex";
+            }
+        };
+        
+        window.addEventListener("DOMContentLoaded", init);
+    </script>
+</body>
+</html>

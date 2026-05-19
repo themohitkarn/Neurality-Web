@@ -3,7 +3,7 @@ export default function NeuralitySplash() {
     <div className="fixed inset-0 bg-black flex items-center justify-center overflow-hidden z-[9999]">
       {/* Background Glow */}
       <div 
-        className="absolute w-72 h-72 rounded-full blur-3xl animate-pulse opacity-15"
+        className="absolute w-72 h-72 rounded-full blur-3xl opacity-15"
         style={{ backgroundColor: "var(--accent, #e11d48)" }}
       />
 
@@ -11,7 +11,7 @@ export default function NeuralitySplash() {
       <div className="relative z-10 flex flex-col items-center">
         {/* N Logo */}
         <div 
-          className="w-24 h-24 rounded-3xl border bg-white/5 backdrop-blur-xl flex items-center justify-center shadow-2xl animate-pulse transition-all duration-300"
+          className="w-24 h-24 rounded-3xl border bg-white/5 backdrop-blur-xl flex items-center justify-center shadow-2xl transition-all duration-300"
           style={{ 
             borderColor: "rgba(var(--accent-rgb, 225, 29, 72), 0.25)",
             boxShadow: "0 0 40px var(--accent-glow, rgba(225, 29, 72, 0.2))"
@@ -53,22 +53,6 @@ export default function NeuralitySplash() {
         <p className="mt-2 text-white/60 text-sm tracking-wide font-medium">
           syncing your universe...
         </p>
-
-        {/* Loading dots */}
-        <div className="mt-6 flex gap-2">
-          <span 
-            className="w-2.5 h-2.5 rounded-full animate-bounce" 
-            style={{ backgroundColor: "var(--accent, #e11d48)" }}
-          />
-          <span 
-            className="w-2.5 h-2.5 rounded-full animate-bounce [animation-delay:150ms]" 
-            style={{ backgroundColor: "var(--accent, #e11d48)" }}
-          />
-          <span 
-            className="w-2.5 h-2.5 rounded-full animate-bounce [animation-delay:300ms]" 
-            style={{ backgroundColor: "var(--accent, #e11d48)" }}
-          />
-        </div>
       </div>
     </div>
   );

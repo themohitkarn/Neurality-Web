@@ -63,7 +63,7 @@ def create_app():
         allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
     )
 
-
+ 
     @app.before_request
     def handle_preflight_and_log():
         
@@ -83,7 +83,7 @@ def create_app():
 
     socketio.init_app(
         app,
-        cors_allowed_origins="*",
+        cors_allowed_origins="origins",
         
     )
 

@@ -56,6 +56,8 @@ class Config:
     SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
     SMTP_SENDER = os.getenv("SMTP_SENDER", "mohitkarn123@gmail.com")
     ENABLE_REAL_EMAILS = os.getenv("ENABLE_REAL_EMAILS", "true").lower() == "true"
+    RESEND_API_KEY = os.getenv("RESEND_API_KEY")
+    CUSTOM_DOMAIN_VERIFIED = os.getenv("CUSTOM_DOMAIN_VERIFIED", "false").lower() == "true"
 
     # ── Twilio SMS Config ──
     TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")

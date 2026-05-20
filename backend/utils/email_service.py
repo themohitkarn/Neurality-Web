@@ -95,6 +95,45 @@ def send_smtp_email(to_email, otp, purpose="signup", device_info=None):
     </html>
     """
 
+    # Attempt Resend API first if configured
+    resend_api_key = current_app.config.get("RESEND_API_KEY")
+    if resend_api_key:
+        import urllib.request
+        import json
+        try:
+            url = "https://api.resend.com/emails"
+            headers = {
+                "Authorization": f"Bearer {resend_api_key}",
+                "Content-Type": "application/json"
+            }
+            # Sandbox onboarding email must be onboarding@resend.dev unless a custom domain is verified
+            from_sender = smtp_sender
+            is_custom_verified = current_app.config.get("CUSTOM_DOMAIN_VERIFIED", False)
+            if not is_custom_verified or "onboarding@resend.dev" in from_sender:
+                from_sender = "Neurality <onboarding@resend.dev>"
+
+            payload = {
+                "from": from_sender,
+                "to": [to_email],
+                "subject": f"[{purpose_title}] Your Neurality Code",
+                "html": html_content
+            }
+            
+            req = urllib.request.Request(
+                url, 
+                data=json.dumps(payload).encode("utf-8"), 
+                headers=headers, 
+                method="POST"
+            )
+            with urllib.request.urlopen(req, timeout=10) as response:
+                res_body = response.read().decode("utf-8")
+                logger.info(f"Successfully sent Resend API OTP email to {to_email}: {res_body}")
+                return True
+        except Exception as exc:
+            logger.error(f"Failed to send Resend API email to {to_email}: {exc}", exc_info=True)
+            print(f"--- RESEND API FAILURE to {to_email}: {exc} (OTP was {otp}) ---")
+
+    # Fallback to standard SMTP (Gmail)
     try:
         msg = MIMEMultipart("alternative")
         msg["Subject"] = f"[{purpose_title}] Your Neurality Code"
@@ -120,3 +159,4 @@ def send_smtp_email(to_email, otp, purpose="signup", device_info=None):
         # Never leak raw SMTP details to front-end, but log clearly for developers
         print(f"--- SMTP SEND FAILURE to {to_email}: {exc} (OTP was {otp}) ---")
         return False
+

@@ -11,6 +11,7 @@ import CallInterface from "./components/CallInterface";
 import MediaViewer from "./components/MediaViewer";
 import { useCall } from "./context/CallContext";
 import BiometricLock from "./components/BiometricLock";
+import PWAInstallPrompt from "./components/PWAInstallPrompt";
 import Home from "./pages/Home";
 import Chat from "./pages/Chat";
 import Explore from "./pages/Explore";
@@ -72,6 +73,7 @@ function AppShell() {
           onHangup={endCall}
         />
         {!isChatPage && <MobileBottomNav />}
+        <PWAInstallPrompt />
       </div>
     </>
   );

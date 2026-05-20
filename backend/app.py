@@ -45,20 +45,24 @@ def create_app():
     bcrypt.init_app(app)
     limiter.init_app(app)
 
-    origins = os.getenv("CORS_ORIGINS", "").split(",")
+    # Merge hardcoded known origins + any extra from CORS_ORIGINS env var
+    allowed_origins = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "https://neurality-web.vercel.app",
+        "https://neurality.online",
+        "https://www.neurality.online",
+    ]
+    extra = [o.strip() for o in os.getenv("CORS_ORIGINS", "").split(",") if o.strip()]
+    origins = list(set(allowed_origins + extra))
 
     CORS(
         app,
-        resources={
-            r"/api/*": {
-                "origins": origins
-            }
-        },
+        resources={r"/api/*": {"origins": origins}},
         supports_credentials=True,
-        allow_headers=["Content-Type", "Authorization", "X-Requested-With"]
+        allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
     )
 
-    
 
     @app.before_request
     def handle_preflight_and_log():

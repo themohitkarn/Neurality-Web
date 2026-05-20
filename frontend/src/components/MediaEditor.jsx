@@ -241,25 +241,35 @@ export default function MediaEditor({ media, onClose, onSave }) {
       // Wait a bit for UI to update
       await new Promise(r => setTimeout(r, 100));
       
-      const blob = await toBlob(editorRef.current, {
-        quality: 0.95,
-        cacheBust: true,
-        fontEmbedCSS: "", // Skip font embedding to avoid CORS SecurityError
-        // Filter out cross-origin stylesheets that cause SecurityError
-        filter: (node) => {
-          if (node.tagName === "LINK" && node.rel === "stylesheet") {
-            try {
-              // Test if we can access the stylesheet
-              return !!node.sheet;
-            } catch (e) {
-              return false;
+      let blob = null;
+      if (media.type !== "video") {
+        blob = await toBlob(editorRef.current, {
+          quality: 0.95,
+          cacheBust: true,
+          fontEmbedCSS: "", // Skip font embedding to avoid CORS SecurityError
+          // Filter out cross-origin stylesheets that cause SecurityError
+          filter: (node) => {
+            if (node.tagName === "LINK" && node.rel === "stylesheet") {
+              try {
+                // Test if we can access the stylesheet
+                return !!node.sheet;
+              } catch (e) {
+                return false;
+              }
             }
+            return true;
           }
-          return true;
-        }
-      });
+        });
+      }
       
-      onSave(blob);
+      onSave({
+        blob,
+        layers,
+        paths,
+        selectedFilter,
+        imageRotation,
+        adjustments
+      });
     } catch (err) {
       console.error("Export error:", err);
       // Fallback: try to export just the image if the whole container fails
@@ -268,6 +278,7 @@ export default function MediaEditor({ media, onClose, onSave }) {
       setIsExporting(false);
     }
   };
+
 
   const removeLayer = (id) => {
     setLayers(layers.filter(l => l.id !== id));
@@ -476,7 +487,7 @@ export default function MediaEditor({ media, onClose, onSave }) {
           {/* Layers */}
           {layers.map((layer) => (
             <motion.div
-              key={layer.id}
+              key={`${layer.id}-${layer.x}-${layer.y}`}
               drag
               dragMomentum={false}
               initial={{ scale: 0, opacity: 0 }}
@@ -486,6 +497,19 @@ export default function MediaEditor({ media, onClose, onSave }) {
                 rotate: layer.rotation
               }}
               onDragStart={() => setSelectedLayerId(layer.id)}
+              onDragEnd={(event, info) => {
+                const container = editorRef.current;
+                if (!container) return;
+                const rect = container.getBoundingClientRect();
+                const newX = ((info.point.x - rect.left) / rect.width) * 100;
+                const newY = ((info.point.y - rect.top) / rect.height) * 100;
+                
+                setLayers(layers.map(l => l.id === layer.id ? { 
+                  ...l, 
+                  x: Math.max(0, Math.min(100, newX)), 
+                  y: Math.max(0, Math.min(100, newY)) 
+                } : l));
+              }}
               onClick={(e) => {
                 e.stopPropagation();
                 setSelectedLayerId(layer.id);
@@ -493,6 +517,7 @@ export default function MediaEditor({ media, onClose, onSave }) {
               className={`absolute cursor-move select-none p-2 rounded-lg ${layer.id === selectedLayerId ? "ring-2 ring-white/50 bg-white/10" : ""}`}
               style={{ left: `${layer.x}%`, top: `${layer.y}%`, transform: "translate(-50%, -50%)" }}
             >
+
               {layer.type === "text" ? (
                 <div
                   style={{

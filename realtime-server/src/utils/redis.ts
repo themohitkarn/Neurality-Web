@@ -1,18 +1,13 @@
-import { createClient } from "redis";
+import Redis from "ioredis";
 
-const redisUrl = process.env.REDIS_URL || "redis://localhost:6379";
+const redisUrl = process.env.REDIS_URL;
 
-const redis = createClient({
-  url: redisUrl,
-});
+if (!redisUrl) {
+  throw new Error("REDIS_URL is missing in environment variables");
+}
+
+const redis = new Redis(redisUrl);
 
 redis.on("error", (err) => console.error("Redis Client Error", err));
 
-const connectRedis = async () => {
-  if (!redis.isOpen) {
-    await redis.connect();
-    console.log("Connected to Redis");
-  }
-};
-
-export { redis, connectRedis };
+export default redis;

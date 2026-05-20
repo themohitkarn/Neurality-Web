@@ -1,12 +1,17 @@
 import re
+import random
+from datetime import datetime, timedelta
 
 from flask import Blueprint, g, jsonify, request
 from sqlalchemy import func, or_
 
 from extensions import db, limiter
 from models.user import User
+from models.otp_verification import OtpVerification
+from models.device_session import DeviceSession
 from utils.image_handler import delete_image, save_uploaded_image
 from utils.jwt_helper import generate_token, token_required
+from utils.device_helper import parse_device_name, get_device_location
 
 
 auth_bp = Blueprint("auth", __name__)
@@ -63,7 +68,22 @@ def signup():
             delete_image(profile_pic_path)
         return jsonify({"message": f"Unable to create user: {exc}"}), 500
 
-    token = generate_token(user.id)
+    client_ip = get_client_ip()
+    user_agent = request.headers.get("User-Agent", "")
+    device_name = parse_device_name(user_agent)
+    location = get_device_location(client_ip)
+
+    session = DeviceSession(
+        user_id=user.id,
+        ip_address=client_ip,
+        user_agent=user_agent,
+        device_name=device_name,
+        location=location
+    )
+    db.session.add(session)
+    db.session.commit()
+
+    token = generate_token(user.id, session_id=session.id)
     return (
         jsonify(
             {
@@ -76,6 +96,15 @@ def signup():
     )
 
 
+def get_client_ip():
+    if request.headers.get("CF-Connecting-IP"):
+        return request.headers.get("CF-Connecting-IP")
+    if request.headers.get("X-Forwarded-For"):
+        return request.headers.get("X-Forwarded-For").split(",")[0].strip()
+    if request.headers.get("X-Real-IP"):
+        return request.headers.get("X-Real-IP")
+    return request.remote_addr
+
 @auth_bp.post("/login")
 @limiter.limit("5 per minute")
 def login():
@@ -87,13 +116,140 @@ def login():
         return jsonify({"message": "Email or username and password are required."}), 400
 
     user = User.query.filter(
-        or_(func.lower(User.email) == identifier.lower(), func.lower(User.username) == identifier.lower())
+        or_(func.lower(User.email) == identifier.lower(), func.lower(User.username) == identifier.lower(), User.phone_number == identifier)
     ).first()
 
-    if not user or not user.check_password(password):
+    if not user:
         return jsonify({"message": "Invalid credentials."}), 401
 
-    token = generate_token(user.id)
+    if not user.check_password(password):
+        user.failed_login_attempts += 1
+        db.session.commit()
+        return jsonify({"message": "Invalid credentials."}), 401
+
+    client_ip = get_client_ip()
+    user_agent = request.headers.get("User-Agent", "")
+
+    # Strict New Device Verification
+    has_sessions = DeviceSession.query.filter_by(user_id=user.id).count() > 0
+    is_recognized = False
+    active_session_id = None
+
+    if has_sessions:
+        matching_session = DeviceSession.query.filter_by(user_id=user.id, user_agent=user_agent).first()
+        if matching_session:
+            is_recognized = True
+            matching_session.ip_address = client_ip
+            matching_session.location = get_device_location(client_ip)
+            matching_session.last_active = datetime.utcnow()
+            db.session.commit()
+            active_session_id = matching_session.id
+    else:
+        # First session for this user is automatically recognized
+        is_recognized = True
+        device_name = parse_device_name(user_agent)
+        location = get_device_location(client_ip)
+        new_session = DeviceSession(
+            user_id=user.id,
+            ip_address=client_ip,
+            user_agent=user_agent,
+            device_name=device_name,
+            location=location
+        )
+        db.session.add(new_session)
+        db.session.commit()
+        active_session_id = new_session.id
+
+    if not is_recognized:
+        otp = str(random.randint(100000, 999999))
+        expires_at = datetime.utcnow() + timedelta(minutes=10)
+        purpose = "new_device_login"
+        
+        OtpVerification.query.filter_by(identifier=identifier, purpose=purpose, is_verified=False).delete()
+        
+        verification = OtpVerification(
+            identifier=identifier,
+            otp=otp,
+            purpose=purpose,
+            expires_at=expires_at
+        )
+        db.session.add(verification)
+        db.session.commit()
+        
+        print(f"--- MOCK OTP SENT for New Device Login: {otp} (IP: {client_ip}) ---")
+        
+        return jsonify({
+            "message": "New device detected. Please verify your login.",
+            "requires_verification": True,
+            "identifier": identifier
+        }), 202
+
+    user.last_ip = client_ip
+    user.last_login = datetime.utcnow()
+    user.failed_login_attempts = 0
+    db.session.commit()
+
+    token = generate_token(user.id, session_id=active_session_id)
+    return jsonify(
+        {
+            "message": "Login successful.",
+            "token": token,
+            "user": user.to_dict(viewer_id=user.id, include_email=True, include_settings=True),
+        }
+    )
+
+@auth_bp.post("/login-verify")
+@limiter.limit("5 per minute")
+def login_verify():
+    payload = _get_payload()
+    identifier = (payload.get("identifier") or "").strip()
+    otp = (payload.get("otp") or "").strip()
+    
+    if not identifier or not otp:
+        return jsonify({"message": "Identifier and OTP are required."}), 400
+
+    verification = OtpVerification.query.filter_by(
+        identifier=identifier, purpose="new_device_login", is_verified=False
+    ).order_by(OtpVerification.created_at.desc()).first()
+
+    if not verification or verification.expires_at < datetime.utcnow() or verification.otp != otp:
+        if verification:
+            verification.attempts += 1
+            db.session.commit()
+        return jsonify({"message": "Invalid or expired OTP."}), 400
+
+    verification.is_verified = True
+    user = User.query.filter(
+        or_(func.lower(User.email) == identifier.lower(), func.lower(User.username) == identifier.lower(), User.phone_number == identifier)
+    ).first()
+
+    client_ip = get_client_ip()
+    user_agent = request.headers.get("User-Agent", "")
+    device_name = parse_device_name(user_agent)
+    location = get_device_location(client_ip)
+
+    # Avoid creating duplicate sessions for the same user agent
+    session = DeviceSession.query.filter_by(user_id=user.id, user_agent=user_agent).first()
+    if not session:
+        session = DeviceSession(
+            user_id=user.id,
+            ip_address=client_ip,
+            user_agent=user_agent,
+            device_name=device_name,
+            location=location
+        )
+        db.session.add(session)
+    else:
+        session.ip_address = client_ip
+        session.location = location
+        session.last_active = datetime.utcnow()
+
+    user.last_ip = client_ip
+    user.last_login = datetime.utcnow()
+    user.failed_login_attempts = 0
+    db.session.commit()
+
+    token = generate_token(user.id, session_id=session.id)
     return jsonify(
         {
             "message": "Login successful.",
@@ -150,3 +306,219 @@ def delete_account():
     db.session.delete(g.current_user)
     db.session.commit()
     return jsonify({"message": "Account deleted successfully."})
+
+import random
+from datetime import datetime, timedelta
+from models.otp_verification import OtpVerification
+
+@auth_bp.post("/check-identity")
+@limiter.limit("10 per minute")
+def check_identity():
+    payload = _get_payload()
+    identifier = (payload.get("identifier") or "").strip().lower()
+    action = (payload.get("action") or "signup").strip().lower() # signup or login
+
+    if not identifier:
+        return jsonify({"message": "Identifier is required."}), 400
+    
+    user = User.query.filter(
+        or_(
+            func.lower(User.email) == identifier,
+            func.lower(User.username) == identifier,
+            User.phone_number == identifier
+        )
+    ).first()
+
+    if action == "signup" and user:
+        return jsonify({"message": "An account with this identifier already exists."}), 409
+    if action == "login" and not user:
+        return jsonify({"message": "No account found with this identifier."}), 404
+
+    return jsonify({
+        "message": "Identity check passed.",
+        "exists": bool(user)
+    })
+
+@auth_bp.post("/send-otp")
+@limiter.limit("5 per minute")
+def send_otp():
+    payload = _get_payload()
+    identifier = (payload.get("identifier") or "").strip().lower()
+    purpose = (payload.get("purpose") or "signup").strip().lower()
+
+    if not identifier:
+        return jsonify({"message": "Identifier is required."}), 400
+
+    otp = str(random.randint(100000, 999999))
+    expires_at = datetime.utcnow() + timedelta(minutes=10)
+
+    # Invalidate previous unverified OTPs for this identifier/purpose
+    OtpVerification.query.filter_by(identifier=identifier, purpose=purpose, is_verified=False).delete()
+
+    verification = OtpVerification(
+        identifier=identifier,
+        otp=otp,
+        purpose=purpose,
+        expires_at=expires_at
+    )
+    db.session.add(verification)
+    db.session.commit()
+
+    # Mock sending OTP
+    print(f"--- MOCK OTP SENT to {identifier}: {otp} (Purpose: {purpose}) ---")
+
+    return jsonify({"message": "OTP sent successfully.", "otp_id": verification.id})
+
+@auth_bp.post("/verify-otp")
+@limiter.limit("10 per minute")
+def verify_otp():
+    payload = _get_payload()
+    identifier = (payload.get("identifier") or "").strip().lower()
+    otp = (payload.get("otp") or "").strip()
+    purpose = (payload.get("purpose") or "signup").strip().lower()
+
+    if not identifier or not otp:
+        return jsonify({"message": "Identifier and OTP are required."}), 400
+
+    verification = OtpVerification.query.filter_by(
+        identifier=identifier, purpose=purpose, is_verified=False
+    ).order_by(OtpVerification.created_at.desc()).first()
+
+    if not verification:
+        return jsonify({"message": "No pending OTP verification found."}), 404
+
+    if verification.expires_at < datetime.utcnow():
+        return jsonify({"message": "OTP has expired."}), 400
+
+    if verification.otp != otp:
+        verification.attempts += 1
+        db.session.commit()
+        return jsonify({"message": "Invalid OTP."}), 400
+
+    verification.is_verified = True
+    db.session.commit()
+
+    return jsonify({
+        "message": "OTP verified successfully.",
+        "verification_id": verification.id
+    })
+
+
+@auth_bp.get("/sessions")
+@token_required
+def get_sessions():
+    sessions = DeviceSession.query.filter_by(user_id=g.current_user.id).order_by(DeviceSession.last_active.desc()).all()
+    current_session_id = getattr(g, "current_session_id", None)
+    return jsonify([
+        {
+            **session.to_dict(),
+            "is_current": session.id == current_session_id
+        }
+        for session in sessions
+    ])
+
+
+@auth_bp.post("/sessions/logout-others")
+@token_required
+def logout_others():
+    current_session_id = getattr(g, "current_session_id", None)
+    if current_session_id:
+        DeviceSession.query.filter(
+            DeviceSession.user_id == g.current_user.id,
+            DeviceSession.id != current_session_id
+        ).delete()
+    else:
+        DeviceSession.query.filter_by(user_id=g.current_user.id).delete()
+        client_ip = get_client_ip()
+        user_agent = request.headers.get("User-Agent", "")
+        new_sess = DeviceSession(
+            user_id=g.current_user.id,
+            ip_address=client_ip,
+            user_agent=user_agent,
+            device_name=parse_device_name(user_agent),
+            location=get_device_location(client_ip)
+        )
+        db.session.add(new_sess)
+    db.session.commit()
+    return jsonify({"message": "Successfully logged out from all other devices."})
+
+
+@auth_bp.delete("/sessions/<session_id>")
+@token_required
+def delete_session(session_id):
+    session = DeviceSession.query.filter_by(user_id=g.current_user.id, id=session_id).first()
+    if not session:
+        return jsonify({"message": "Session not found."}), 404
+        
+    current_session_id = getattr(g, "current_session_id", None)
+    db.session.delete(session)
+    db.session.commit()
+    
+    is_self = (session_id == current_session_id)
+    return jsonify({
+        "message": "Successfully terminated session.",
+        "is_self": is_self
+    })
+
+
+@auth_bp.post("/link-identifier")
+@token_required
+def link_identifier():
+    payload = _get_payload()
+    identifier_type = payload.get("type") # "email" or "phone"
+    value = (payload.get("value") or "").strip()
+    
+    if not identifier_type or not value:
+        return jsonify({"message": "Identifier type and value are required."}), 400
+        
+    if identifier_type == "email":
+        value = value.lower()
+        if not EMAIL_REGEX.match(value):
+            return jsonify({"message": "Invalid email address."}), 400
+            
+        existing = User.query.filter(func.lower(User.email) == value).first()
+        if existing:
+            return jsonify({"message": "Email is already linked to another account."}), 409
+            
+        g.current_user.email = value
+    elif identifier_type == "phone":
+        existing = User.query.filter(User.phone_number == value).first()
+        if existing:
+            return jsonify({"message": "Phone number is already linked to another account."}), 409
+            
+        g.current_user.phone_number = value
+    else:
+        return jsonify({"message": "Invalid identifier type."}), 400
+        
+    db.session.commit()
+    return jsonify({
+        "message": f"Successfully linked {identifier_type}.",
+        "user": g.current_user.to_dict(viewer_id=g.current_user.id, include_email=True, include_settings=True)
+    })
+
+
+@auth_bp.post("/unlink-identifier")
+@token_required
+def unlink_identifier():
+    payload = _get_payload()
+    identifier_type = payload.get("type") # "email" or "phone"
+    
+    if not identifier_type:
+        return jsonify({"message": "Identifier type is required."}), 400
+        
+    if identifier_type == "email":
+        if not g.current_user.phone_number:
+            return jsonify({"message": "Cannot unlink email. You must have a phone number linked to preserve access."}), 400
+        g.current_user.email = None
+    elif identifier_type == "phone":
+        if not g.current_user.email:
+            return jsonify({"message": "Cannot unlink phone number. You must have an email linked to preserve access."}), 400
+        g.current_user.phone_number = None
+    else:
+        return jsonify({"message": "Invalid identifier type."}), 400
+        
+    db.session.commit()
+    return jsonify({
+        "message": f"Successfully unlinked {identifier_type}.",
+        "user": g.current_user.to_dict(viewer_id=g.current_user.id, include_email=True, include_settings=True)
+    })

@@ -134,12 +134,27 @@ export default function StoryCreator({ isOpen, onClose, onPublish, sharedContent
     }
   };
 
-  const handleEditorSave = async (blob) => {
+  const handleEditorSave = async ({ blob, layers, paths, selectedFilter, imageRotation, adjustments }) => {
     setIsPublishing(true);
     try {
       const formData = new FormData();
-      formData.append("image", blob, "story_image.png");
-      formData.append("media_type", "image");
+      if (media?.type === "video") {
+        formData.append("image", media.file, media.file.name || "story_video.mp4");
+        formData.append("media_type", "video");
+      } else {
+        formData.append("image", blob, "story_image.png");
+        formData.append("media_type", "image");
+      }
+      
+      // Save all overlays, drawings, adjustments, and filters as text_style
+      const textStyleData = {
+        layers,
+        paths,
+        selectedFilter,
+        imageRotation,
+        adjustments
+      };
+      formData.append("text_style", JSON.stringify(textStyleData));
       formData.append("is_muted", "false");
       
       if (media?.content) {
@@ -158,6 +173,7 @@ export default function StoryCreator({ isOpen, onClose, onPublish, sharedContent
       setIsPublishing(false);
     }
   };
+
 
   if (!isOpen) return null;
 

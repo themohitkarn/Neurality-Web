@@ -8,10 +8,12 @@ BASE_DIR = Path(__file__).resolve().parent
 class Config:
     SECRET_KEY = os.getenv("SECRET_KEY", "neurality-dev-secret")
     JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", SECRET_KEY)
-    SQLALCHEMY_DATABASE_URI = os.getenv(
-        "DATABASE_URL",
-        "postgresql://postgres:password@localhost:5432/neurality_main",
-    ).replace("postgres://", "postgresql://", 1) # Support Heroku/Neon styles
+
+    _db_url = os.getenv("DATABASE_URL")
+    if not _db_url:
+        raise RuntimeError("DATABASE_URL is missing in environment variables")
+    SQLALCHEMY_DATABASE_URI = _db_url.replace("postgres://", "postgresql://", 1) # Support Heroku/Neon styles
+
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ENGINE_OPTIONS = {
         "pool_pre_ping": True,
@@ -19,9 +21,14 @@ class Config:
     }
     MAX_CONTENT_LENGTH = int(os.getenv("MAX_CONTENT_LENGTH_MB", "150")) * 1024 * 1024
     JWT_EXPIRES_IN_DAYS = int(os.getenv("JWT_EXPIRES_IN_DAYS", "7"))
+
+    _cors = os.getenv("CORS_ORIGINS")
+    if not _cors:
+        raise RuntimeError("CORS_ORIGINS is missing in environment variables")
+    
     CORS_ORIGINS = [
         origin.strip()
-        for origin in os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")
+        for origin in _cors.split(",")
         if origin.strip()
     ]
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")

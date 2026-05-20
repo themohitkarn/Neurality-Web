@@ -3,7 +3,8 @@ import { Redis } from "ioredis";
 import prisma from "../utils/prisma";
 import axios from "axios";
 
-const REDIS_URL = process.env.REDIS_URL || "redis://localhost:6379";
+const REDIS_URL = process.env.REDIS_URL;
+if (!REDIS_URL) throw new Error("REDIS_URL is missing in environment variables");
 const connection = new Redis(REDIS_URL, { maxRetriesPerRequest: null });
 
 // 1. Message Queue (Scheduled & AI Tasks)
@@ -47,7 +48,8 @@ export const messageWorker = new Worker(
       case "AI_PROCESS": {
         // AI Summarization, Mood Detection, etc.
         try {
-          const flaskUrl = process.env.FLASK_API_URL || "http://localhost:5000/api";
+          const flaskUrl = process.env.FLASK_API_URL;
+          if (!flaskUrl) throw new Error("FLASK_API_URL is missing in environment variables");
           const res = await axios.post(`${flaskUrl}/ai/process-message`, {
             messageId: data.messageId,
             content: data.content

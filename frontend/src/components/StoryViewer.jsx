@@ -1,11 +1,22 @@
 import { useEffect, useState, useRef, useCallback } from "react";
-import { X, Send, Heart, Smile } from "lucide-react";
+import { X, Send, Heart, Smile, Volume2, VolumeX } from "lucide-react";
 import { useSocket } from "../context/SocketContext";
 
 import Avatar from "./Avatar";
 import { storyApi } from "../services/api";
 import { useVideoPlayback } from "../context/VideoPlaybackContext";
 
+const FILTERS = [
+  { id: "none", name: "Normal", filter: "none" },
+  { id: "clarendon", name: "Aura", filter: "contrast(1.2) saturate(1.35)" },
+  { id: "moon", name: "Moon", filter: "grayscale(1) contrast(1.1) brightness(1.1)" },
+  { id: "lark", name: "Lark", filter: "brightness(1.1) contrast(0.9) saturate(1.2)" },
+  { id: "reyes", name: "Vintage", filter: "sepia(0.3) brightness(1.1) contrast(0.85) saturate(0.75)" },
+  { id: "juno", name: "Neon", filter: "sepia(0.2) contrast(1.3) brightness(1.1) saturate(2)" },
+  { id: "aden", name: "Aden", filter: "sepia(0.2) brightness(1.15) saturate(1.4)" },
+  { id: "cyber", name: "Cyber", filter: "hue-rotate(280deg) saturate(2.5) contrast(1.2)" },
+  { id: "midnight", name: "Midnight", filter: "brightness(0.8) contrast(1.4) saturate(0.5) hue-rotate(200deg)" },
+];
 
 export default function StoryViewer({ group, open, onClose, allGroups, onNextGroup }) {
   const [activeIndex, setActiveIndex] = useState(0);
@@ -16,21 +27,25 @@ export default function StoryViewer({ group, open, onClose, allGroups, onNextGro
   const startYRef = useRef(0);
   const timerRef = useRef(null);
   const containerRef = useRef(null);
-   const videoRef = useRef(null);
+  const videoRef = useRef(null);
   const STORY_DURATION = 5000;
   const { socket, isConnected } = useSocket();
   const [replyText, setReplyText] = useState("");
   const [showReactions, setShowReactions] = useState(false);
 
-  const { isPlaybackEnabled, pausePlayback, resumePlayback } = useVideoPlayback();
+  // Video-specific states
+  const [videoProgress, setVideoProgress] = useState(0);
+  const [isMuted, setIsMuted] = useState(true); // Premium muted-autoplay by default
+
+  const { isPlaybackEnabled, pausePlayback, resumePlayback } = useVideoPlayback() || {};
 
   // Handle modal playback state
   useEffect(() => {
-    if (open) {
+    if (open && pausePlayback) {
       pausePlayback();
     }
     return () => {
-      if (open) resumePlayback();
+      if (open && resumePlayback) resumePlayback();
     };
   }, [open, pausePlayback, resumePlayback]);
 
@@ -50,7 +65,13 @@ export default function StoryViewer({ group, open, onClose, allGroups, onNextGro
   useEffect(() => {
     setActiveIndex(0);
     setPaused(false);
+    setVideoProgress(0);
   }, [group?.user?.id]);
+
+  /* Reset video progress when active story changes */
+  useEffect(() => {
+    setVideoProgress(0);
+  }, [activeIndex]);
 
   /* Mark story as seen */
   useEffect(() => {
@@ -63,6 +84,12 @@ export default function StoryViewer({ group, open, onClose, allGroups, onNextGro
   /* Auto-advance timer */
   useEffect(() => {
     if (!open || !group || paused) {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      return;
+    }
+
+    // Video stories will auto-advance on onEnded of the video tag
+    if (group.stories[activeIndex]?.media_type === "video") {
       if (timerRef.current) clearTimeout(timerRef.current);
       return;
     }
@@ -148,6 +175,7 @@ export default function StoryViewer({ group, open, onClose, allGroups, onNextGro
     setPaused(true);
   }, []);
 
+  /* Unpause */
   const handlePointerUp = useCallback(() => {
     setPaused(false);
   }, []);
@@ -214,11 +242,41 @@ export default function StoryViewer({ group, open, onClose, allGroups, onNextGro
 
   const activeStory = group.stories[activeIndex];
 
+  // Parse rich overlay styles
+  const overlayData = (() => {
+    if (!activeStory?.text_style) return null;
+    if (typeof activeStory.text_style === "string") {
+      try {
+        return JSON.parse(activeStory.text_style);
+      } catch (e) {
+        return null;
+      }
+    }
+    return activeStory.text_style;
+  })();
+
+  const selectedFilter = overlayData?.selectedFilter || "none";
+  const adjustments = overlayData?.adjustments || {
+    brightness: 100,
+    contrast: 100,
+    saturate: 100,
+    sepia: 0,
+    hueRotate: 0,
+    blur: 0,
+  };
+  const imageRotation = overlayData?.imageRotation || 0;
+
+  const getFilterString = () => {
+    const base = FILTERS.find(f => f.id === selectedFilter)?.filter || "none";
+    const adj = `brightness(${adjustments.brightness}%) contrast(${adjustments.contrast}%) saturate(${adjustments.saturate}%) sepia(${adjustments.sepia}%) hue-rotate(${adjustments.hueRotate}deg) blur(${adjustments.blur}px)`;
+    return base === "none" ? adj : `${base} ${adj}`;
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#050505] overflow-hidden">
       <div
         ref={containerRef}
-        className="relative w-full h-full max-w-[480px] mx-auto bg-black overflow-hidden shadow-2xl flex flex-col items-center justify-center"
+        className="relative w-full h-full max-w-[480px] mx-auto bg-black overflow-hidden shadow-2xl flex flex-col items-center justify-center animate-in fade-in duration-300"
         style={{
           transform: `translateY(${swipeY}px) scale(${swipeScale})`,
           transition: dragging ? "none" : "transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)",
@@ -231,24 +289,102 @@ export default function StoryViewer({ group, open, onClose, allGroups, onNextGro
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
       >
-        {/* Story media */}
-        {activeStory.media_type === "video" ? (
-          <video 
-            ref={videoRef}
-            src={activeStory.image_url} 
-            playsInline 
-            muted={activeStory.is_muted}
-            className="w-full h-full object-contain"
-            onEnded={goNext}
-          />
-        ) : (
-          <img
-            src={activeStory.image_url}
-            alt=""
-            className="w-full h-full object-contain"
-            draggable={false}
-          />
-        )}
+        {/* Story media & dynamic overlays container */}
+        <div className="absolute inset-0 w-full h-full flex items-center justify-center overflow-hidden pointer-events-none">
+          {activeStory.media_type === "video" ? (
+            <video 
+              ref={videoRef}
+              src={activeStory.image_url} 
+              playsInline 
+              muted={isMuted}
+              className="w-full h-full object-contain pointer-events-auto"
+              style={{
+                filter: getFilterString(),
+                transform: `rotate(${imageRotation}deg)`,
+                transformOrigin: "center center"
+              }}
+              onTimeUpdate={(e) => {
+                if (e.target.duration) {
+                  const progress = (e.target.currentTime / e.target.duration) * 100;
+                  setVideoProgress(progress);
+                }
+              }}
+              onEnded={goNext}
+            />
+          ) : (
+            <img
+              src={activeStory.image_url}
+              alt=""
+              className="w-full h-full object-contain pointer-events-auto"
+              style={{
+                filter: getFilterString(),
+                transform: `rotate(${imageRotation}deg)`,
+                transformOrigin: "center center"
+              }}
+              draggable={false}
+            />
+          )}
+
+          {/* SVG Drawings Overlay */}
+          {overlayData?.paths && overlayData.paths.length > 0 && (
+            <div className="absolute inset-0 z-10 pointer-events-none">
+              <svg className="w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
+                {overlayData.paths.map((path, i) => (
+                  <polyline
+                    key={i}
+                    points={path.points.map(p => `${p.x},${p.y}`).join(" ")}
+                    fill="none"
+                    stroke={path.color}
+                    strokeWidth={path.size / 5}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                ))}
+              </svg>
+            </div>
+          )}
+
+          {/* Dynamic Layers Overlay (text, sticker, image overlays) */}
+          {overlayData?.layers?.map((layer) => (
+            <div
+              key={layer.id}
+              className="absolute pointer-events-none select-none p-2 rounded-lg z-20"
+              style={{ 
+                left: `${layer.x}%`, 
+                top: `${layer.y}%`, 
+                transform: `translate(-50%, -50%) scale(${layer.scale}) rotate(${layer.rotation}deg)`,
+                transformOrigin: "center center"
+              }}
+            >
+              {layer.type === "text" ? (
+                <div
+                  style={{
+                    color: layer.color,
+                    fontSize: layer.fontSize,
+                    fontWeight: "bold",
+                    textShadow: "0 2px 10px rgba(0,0,0,0.5)",
+                    whiteSpace: "pre-wrap",
+                    wordBreak: "break-word",
+                    maxWidth: "250px",
+                  }}
+                >
+                  {layer.content}
+                </div>
+              ) : layer.type === "image" ? (
+                <img
+                  src={layer.content}
+                  crossOrigin="anonymous"
+                  className="max-w-[200px] rounded-2xl shadow-2xl"
+                  draggable={false}
+                />
+              ) : (
+                <div className="text-6xl">
+                  {layer.content}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
 
         {/* Progress bars */}
         <div className="absolute inset-x-0 top-0 z-40 flex gap-1 px-2 pt-2" style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 8px)" }}>
@@ -265,7 +401,7 @@ export default function StoryViewer({ group, open, onClose, allGroups, onNextGro
                             ? "none"
                             : `progressBar ${STORY_DURATION}ms linear forwards`,
                           animationPlayState: paused ? "paused" : "running",
-                          width: activeStory.media_type === "video" ? "0%" : undefined
+                          width: activeStory.media_type === "video" ? `${videoProgress}%` : undefined
                         }
                       : { width: 0 }
                 }
@@ -276,7 +412,7 @@ export default function StoryViewer({ group, open, onClose, allGroups, onNextGro
 
         {/* Header */}
         <div
-          className="absolute inset-x-0 top-0 z-30 flex items-center justify-between px-4"
+          className="absolute inset-x-0 top-0 z-30 flex items-center justify-between px-4 w-full"
           style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 24px)" }}
         >
           <div className="flex items-center gap-3">
@@ -288,14 +424,28 @@ export default function StoryViewer({ group, open, onClose, allGroups, onNextGro
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); onClose(); }}
-            className="flex items-center justify-center rounded-full text-white transition active:scale-90"
-            style={{ width: 36, height: 36, background: "rgba(0,0,0,0.3)", backdropFilter: "blur(8px)", border: "1px solid rgba(255,255,255,0.1)" }}
-          >
-            <X size={20} />
-          </button>
+
+          {/* Volume and Close Actions */}
+          <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+            {activeStory.media_type === "video" && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setIsMuted(!isMuted); }}
+                className="flex items-center justify-center rounded-full text-white transition active:scale-90"
+                style={{ width: 36, height: 36, background: "rgba(0,0,0,0.3)", backdropFilter: "blur(8px)", border: "1px solid rgba(255,255,255,0.1)" }}
+              >
+                {isMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onClose(); }}
+              className="flex items-center justify-center rounded-full text-white transition active:scale-90"
+              style={{ width: 36, height: 36, background: "rgba(0,0,0,0.3)", backdropFilter: "blur(8px)", border: "1px solid rgba(255,255,255,0.1)" }}
+            >
+              <X size={20} />
+            </button>
+          </div>
         </div>
 
         {/* Bottom gradient */}

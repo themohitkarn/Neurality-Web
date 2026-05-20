@@ -2,19 +2,27 @@ import axios from "axios";
 
 
 export const TOKEN_STORAGE_KEY = "neurality_token";
-export const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+
+if (!import.meta.env.VITE_API_URL) {
+  throw new Error("VITE_API_URL is missing in environment variables");
+}
+if (!import.meta.env.VITE_REALTIME_URL) {
+  throw new Error("VITE_REALTIME_URL is missing in environment variables");
+}
+
+export const API_BASE_URL = import.meta.env.VITE_API_URL;
 
 const getBaseUrl = () => {
   try {
     const url = new URL(API_BASE_URL);
     return `${url.protocol}//${url.hostname}`;
   } catch (e) {
-    return "http://localhost";
+    throw new Error("Invalid VITE_API_URL format");
   }
 };
 
 export const SOCKET_BASE_URL = getBaseUrl();
-export const REALTIME_BASE_URL = import.meta.env.VITE_REALTIME_URL || "http://localhost:5001";
+export const REALTIME_BASE_URL = import.meta.env.VITE_REALTIME_URL;
 export const REALTIME_API_URL = import.meta.env.VITE_REALTIME_API_URL || `${REALTIME_BASE_URL}/api`;
 
 
@@ -43,6 +51,10 @@ export const getErrorMessage = (error) =>
   error?.response?.data?.message || "Something went wrong. Please try again.";
 
 export const authApi = {
+  checkIdentity: (payload) => api.post("/auth/check-identity", payload),
+  sendOtp: (payload) => api.post("/auth/send-otp", payload),
+  verifyOtp: (payload) => api.post("/auth/verify-otp", payload),
+  loginVerify: (payload) => api.post("/auth/login-verify", payload),
   signup: (payload) =>
     api.post("/auth/signup", payload, {
       headers: {
@@ -53,6 +65,11 @@ export const authApi = {
   me: () => api.get("/auth/me"),
   changePassword: (payload) => api.post("/auth/change-password", payload),
   deleteAccount: (payload) => api.post("/auth/delete-account", payload),
+  getSessions: () => api.get("/auth/sessions"),
+  logoutOthers: () => api.post("/auth/sessions/logout-others"),
+  deleteSession: (sessionId) => api.delete(`/auth/sessions/${sessionId}`),
+  linkIdentifier: (payload) => api.post("/auth/link-identifier", payload),
+  unlinkIdentifier: (payload) => api.post("/auth/unlink-identifier", payload),
 };
 
 export const aiApi = {

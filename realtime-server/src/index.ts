@@ -5,7 +5,6 @@ import express from "express";
 import { createServer } from "http";
 import { Server } from "socket.io";
 import { createAdapter } from "@socket.io/redis-adapter";
-import { Redis } from "ioredis";
 import cors from "cors";
 import cron from "node-cron";
 import axios from "axios";
@@ -14,6 +13,7 @@ import path from "path";
 import fs from "fs";
 import { socketAuthMiddleware, AuthenticatedSocket } from "./middlewares/auth";
 import prisma from "./utils/prisma";
+import redis from "./utils/redis";
 import { messageQueue } from "./queues/messageQueue";
 
 import { registerMessageHandler } from "./handlers/messageHandler";
@@ -27,7 +27,11 @@ const app = express();
 const httpServer = createServer(app);
 
 const PORT = process.env.PORT || 5001;
-const REDIS_URL = process.env.REDIS_URL || "redis://localhost:6379";
+
+const CORS_ORIGIN = process.env.CORS_ORIGIN;
+if (!CORS_ORIGIN) {
+  throw new Error("CORS_ORIGIN is missing in environment variables");
+}
 
 app.use(cors());
 app.use(express.json());
@@ -47,14 +51,14 @@ const upload = multer({ storage });
 
 const io = new Server(httpServer, {
   cors: {
-    origin: process.env.CORS_ORIGIN || "http://localhost:5173",
+    origin: CORS_ORIGIN,
     methods: ["GET", "POST"],
     credentials: true,
   },
 });
 
 // Redis setup for Socket.IO Adapter (Horizontal Scaling)
-const pubClient = new Redis(REDIS_URL);
+const pubClient = redis;
 const subClient = pubClient.duplicate();
 io.adapter(createAdapter(pubClient, subClient));
 

@@ -171,3 +171,67 @@ def process_uploaded_video(file_storage: FileStorage):
         "video_path": f"reels/{output_video_path.name}",
         "thumbnail_path": f"thumbnails/{output_thumbnail_path.name}",
     }
+
+
+def process_uploaded_story_video(file_storage: FileStorage):
+    if not file_storage or not file_storage.filename:
+        raise ValueError("Please choose a video file.")
+
+    filename = secure_filename(file_storage.filename)
+    if not allowed_video_file(filename):
+        raise ValueError("Unsupported video type. Allowed types: mp4, mov, m4v, webm.")
+
+    mimetype = file_storage.mimetype or ""
+    if not (mimetype.startswith(ALLOWED_VIDEO_MIME_PREFIXES) or mimetype in {"application/octet-stream", "binary/octet-stream"}):
+        raise ValueError("Only video uploads are allowed.")
+
+    upload_size_mb = _uploaded_size_mb(file_storage)
+    max_upload_mb = current_app.config.get("MAX_VIDEO_UPLOAD_MB", 150)
+    if upload_size_mb > max_upload_mb:
+        raise ValueError(f"Videos must be {max_upload_mb}MB or smaller.")
+
+    temp_folder = Path(current_app.config["VIDEO_TEMP_FOLDER"])
+    story_folder = Path(current_app.config["STORY_FOLDER"])
+
+    temp_folder.mkdir(parents=True, exist_ok=True)
+    story_folder.mkdir(parents=True, exist_ok=True)
+
+    temp_extension = filename.rsplit(".", 1)[1].lower()
+    token = uuid4().hex
+    temp_path = temp_folder / f"{token}.{temp_extension}"
+    output_video_path = story_folder / f"{token}.mp4"
+
+    file_storage.save(temp_path)
+
+    compress_command = [
+        current_app.config["FFMPEG_BINARY"],
+        "-y",
+        "-i",
+        str(temp_path),
+        "-vf",
+        "scale='min(720,iw)':-2",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "fast",
+        "-crf",
+        "28",
+        "-c:a",
+        "aac",
+        "-movflags",
+        "+faststart",
+        str(output_video_path),
+    ]
+
+    try:
+        subprocess.run(compress_command, check=True, capture_output=True, text=True)
+    except Exception as exc:
+        if output_video_path.exists():
+            output_video_path.unlink()
+        raise ValueError(f"ffmpeg could not process the uploaded story video: {exc}")
+    finally:
+        if temp_path.exists():
+            temp_path.unlink()
+
+    return f"stories/{output_video_path.name}"
+

@@ -45,16 +45,8 @@ def create_app():
     bcrypt.init_app(app)
     limiter.init_app(app)
 
-    # Merge hardcoded known origins + any extra from CORS_ORIGINS env var
-    allowed_origins = [
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "https://neurality-web.vercel.app",
-        "https://neurality.online",
-        "https://www.neurality.online",
-    ]
-    extra = [o.strip() for o in os.getenv("CORS_ORIGINS", "").split(",") if o.strip()]
-    origins = list(set(allowed_origins + extra))
+    # Use strictly the origins defined in Config (which validates the env var)
+    origins = app.config["CORS_ORIGINS"]
 
     CORS(
         app,

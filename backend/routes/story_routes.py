@@ -9,6 +9,7 @@ from extensions import db
 from models.story import Story, StorySeen, StoryReaction
 from models.user import User
 from utils.image_handler import delete_image, save_uploaded_image
+from utils.video_handler import process_uploaded_story_video
 from utils.jwt_helper import token_required
 from sockets.story_socket import handle_story_created
 
@@ -30,10 +31,13 @@ def create_story():
         return jsonify({"message": "A story media file is required."}), 400
 
     try:
-        # We reuse save_uploaded_image which works for videos too if handled in handler
-        image_path = save_uploaded_image(image, category="stories")
+        if media_type == "video":
+            image_path = process_uploaded_story_video(image)
+        else:
+            image_path = save_uploaded_image(image, category="stories")
     except ValueError as exc:
         return jsonify({"message": str(exc)}), 400
+
 
     post_id = request.form.get("post_id")
     reel_id = request.form.get("reel_id")

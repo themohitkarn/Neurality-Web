@@ -96,6 +96,13 @@ export default function Settings() {
   const [deletePassword, setDeletePassword] = useState("");
   const [deletingAccount, setDeletingAccount] = useState(false);
   
+  const [sessions, setSessions] = useState([]);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [linkEmailInput, setLinkEmailInput] = useState("");
+  const [linkPhoneInput, setLinkPhoneInput] = useState("");
+  const [isLinkingEmail, setIsLinkingEmail] = useState(false);
+  const [isLinkingPhone, setIsLinkingPhone] = useState(false);
+  
   const [blockedUsers, setBlockedUsers] = useState([]);
   const [loadingBlocked, setLoadingBlocked] = useState(false);
   const [mutedUsersCount, setMutedUsersCount] = useState(0);
@@ -278,6 +285,86 @@ export default function Settings() {
       loadBlocked();
     }
   }, [activeCategory]);
+
+  // Load sessions when entering account category
+  useEffect(() => {
+    if (activeCategory === "account") {
+      const loadSessions = async () => {
+        setSessionsLoading(true);
+        try {
+          const { data } = await authApi.getSessions();
+          setSessions(data || []);
+        } catch (err) {
+          console.error("Failed to load device sessions:", err);
+        } finally {
+          setSessionsLoading(false);
+        }
+      };
+      loadSessions();
+    }
+  }, [activeCategory]);
+
+  const handleRevokeSession = async (sessionId) => {
+    try {
+      setError("");
+      setSuccessMessage("");
+      const { data } = await authApi.deleteSession(sessionId);
+      if (data.is_self) {
+        logout();
+        navigate("/login");
+        return;
+      }
+      setSessions((prev) => prev.filter((s) => s.id !== sessionId));
+      setSuccessMessage("Session revoked successfully.");
+    } catch (err) {
+      setError(getErrorMessage(err));
+    }
+  };
+
+  const handleLogoutOthers = async () => {
+    try {
+      setError("");
+      setSuccessMessage("");
+      await authApi.logoutOthers();
+      // Keep only current session
+      setSessions((prev) => prev.filter((s) => s.is_current));
+      setSuccessMessage("Logged out from all other devices successfully.");
+    } catch (err) {
+      setError(getErrorMessage(err));
+    }
+  };
+
+  const handleLinkIdentifier = async (type, value) => {
+    if (!value) return;
+    if (type === "email") setIsLinkingEmail(true);
+    if (type === "phone") setIsLinkingPhone(true);
+    setError("");
+    setSuccessMessage("");
+    try {
+      const { data } = await authApi.linkIdentifier({ type, value });
+      setUser(data.user);
+      setSuccessMessage(`Successfully linked ${type}.`);
+      if (type === "email") setLinkEmailInput("");
+      if (type === "phone") setLinkPhoneInput("");
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setIsLinkingEmail(false);
+      setIsLinkingPhone(false);
+    }
+  };
+
+  const handleUnlinkIdentifier = async (type) => {
+    setError("");
+    setSuccessMessage("");
+    try {
+      const { data } = await authApi.unlinkIdentifier({ type });
+      setUser(data.user);
+      setSuccessMessage(`Successfully unlinked ${type}.`);
+    } catch (err) {
+      setError(getErrorMessage(err));
+    }
+  };
 
   const updateSetting = async (key, value) => {
     setSettingsForm((current) => ({ ...current, [key]: value }));
@@ -556,22 +643,86 @@ export default function Settings() {
                         <p className="text-sm font-semibold text-ink mt-1">{user?.full_name || "Not specified"}</p>
                       </div>
                       <div className="p-4 bg-zinc-50 dark:bg-zinc-900/50 rounded-2xl border border-[color:var(--border)]">
-                        <p className="text-[10px] uppercase tracking-wider text-zinc-400 font-bold">Email Address</p>
-                        <p className="text-sm font-semibold text-ink mt-1">{user?.email || "No email bound"}</p>
-                      </div>
-                      <div className="p-4 bg-zinc-50 dark:bg-zinc-900/50 rounded-2xl border border-[color:var(--border)]">
                         <p className="text-[10px] uppercase tracking-wider text-zinc-400 font-bold">Account Tier</p>
                         <p className="text-sm font-semibold text-rose-500 mt-1 capitalize flex items-center gap-1.5">
                           <Sparkles size={14} />
                           {user?.account_type || "Personal"}
                         </p>
                       </div>
-                      <div className="p-4 bg-zinc-50 dark:bg-zinc-900/50 rounded-2xl border border-[color:var(--border)]">
-                        <p className="text-[10px] uppercase tracking-wider text-zinc-400 font-bold">Verification Status</p>
-                        <p className="text-sm font-semibold text-emerald-500 mt-1 flex items-center gap-1">
-                          <CheckCircle2 size={14} />
-                          System Verified
-                        </p>
+                    </div>
+
+                    <div className="border-t border-[color:var(--border)] pt-4 space-y-4">
+                      <h4 className="text-sm font-bold text-ink">Linked Contact Methods</h4>
+                      <div className="space-y-3">
+                        {/* Email Row */}
+                        <div className="p-4 bg-zinc-50 dark:bg-zinc-900/50 rounded-2xl border border-[color:var(--border)] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-[10px] uppercase tracking-wider text-zinc-400 font-bold">Email Address</p>
+                            <p className="text-sm font-semibold text-ink mt-1 truncate">{user?.email || "No email linked"}</p>
+                          </div>
+                          <div>
+                            {user?.email ? (
+                              <button
+                                onClick={() => handleUnlinkIdentifier("email")}
+                                className="px-3 py-1.5 rounded-xl bg-red-50 dark:bg-red-500/10 text-red-500 text-xs font-bold transition-all hover:bg-red-100/50 active:scale-95"
+                              >
+                                Unlink Email
+                              </button>
+                            ) : (
+                              <div className="flex gap-2">
+                                <input
+                                  type="email"
+                                  placeholder="Enter email"
+                                  value={linkEmailInput}
+                                  onChange={(e) => setLinkEmailInput(e.target.value)}
+                                  className="field !py-1 !px-3 text-xs"
+                                />
+                                <button
+                                  onClick={() => handleLinkIdentifier("email", linkEmailInput)}
+                                  disabled={isLinkingEmail}
+                                  className="px-3 py-1.5 rounded-xl bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 text-xs font-bold transition-all active:scale-95"
+                                >
+                                  {isLinkingEmail ? "Linking..." : "Link"}
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Phone Row */}
+                        <div className="p-4 bg-zinc-50 dark:bg-zinc-900/50 rounded-2xl border border-[color:var(--border)] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-[10px] uppercase tracking-wider text-zinc-400 font-bold">Phone Number</p>
+                            <p className="text-sm font-semibold text-ink mt-1 truncate">{user?.phone_number || "No phone number linked"}</p>
+                          </div>
+                          <div>
+                            {user?.phone_number ? (
+                              <button
+                                onClick={() => handleUnlinkIdentifier("phone")}
+                                className="px-3 py-1.5 rounded-xl bg-red-50 dark:bg-red-500/10 text-red-500 text-xs font-bold transition-all hover:bg-red-100/50 active:scale-95"
+                              >
+                                Unlink Phone
+                              </button>
+                            ) : (
+                              <div className="flex gap-2">
+                                <input
+                                  type="text"
+                                  placeholder="e.g. +919999999999"
+                                  value={linkPhoneInput}
+                                  onChange={(e) => setLinkPhoneInput(e.target.value)}
+                                  className="field !py-1 !px-3 text-xs"
+                                />
+                                <button
+                                  onClick={() => handleLinkIdentifier("phone", linkPhoneInput)}
+                                  disabled={isLinkingPhone}
+                                  className="px-3 py-1.5 rounded-xl bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 text-xs font-bold transition-all active:scale-95"
+                                >
+                                  {isLinkingPhone ? "Linking..." : "Link"}
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -644,37 +795,55 @@ export default function Settings() {
 
                 {/* Login Sessions */}
                 <div className="space-y-3">
-                  <h3 className="text-lg font-bold text-ink flex items-center gap-2">
-                    <Smartphone size={18} className="text-rose-500" />
-                    Active Device Sessions
-                  </h3>
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-bold text-ink flex items-center gap-2">
+                      <Smartphone size={18} className="text-rose-500" />
+                      Active Device Sessions
+                    </h3>
+                    {sessions.filter(s => !s.is_current).length > 0 && (
+                      <button
+                        onClick={handleLogoutOthers}
+                        className="text-xs font-bold text-red-500 hover:underline flex items-center gap-1 active:scale-95 transition-all"
+                      >
+                        Logout other devices
+                      </button>
+                    )}
+                  </div>
                   <div className="panel soft-ring p-6 space-y-4">
-                    <div className="flex items-center justify-between p-3.5 bg-zinc-50 dark:bg-zinc-900/50 rounded-2xl border border-[color:var(--border)]">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-500">
-                          <Smartphone size={20} />
+                    {sessionsLoading ? (
+                      <p className="text-sm text-[color:var(--text-muted)] animate-pulse">Loading active sessions...</p>
+                    ) : sessions.length === 0 ? (
+                      <p className="text-sm text-[color:var(--text-muted)]">No active sessions found.</p>
+                    ) : (
+                      sessions.map((session) => (
+                        <div key={session.id} className={`flex items-center justify-between p-3.5 bg-zinc-50 dark:bg-zinc-900/50 rounded-2xl border border-[color:var(--border)] ${!session.is_current ? "opacity-75" : ""}`}>
+                          <div className="flex items-center gap-3">
+                            <div className={`p-2.5 rounded-xl ${session.is_current ? "bg-emerald-500/10 text-emerald-500" : "bg-zinc-400/10 text-[color:var(--text-muted)]"}`}>
+                              <Smartphone size={20} />
+                            </div>
+                            <div>
+                              <p className="text-sm font-semibold text-ink">{session.device_name || "Unknown Device"}</p>
+                              <p className="text-[10px] text-zinc-400">
+                                {session.ip_address} · {session.location} · Active {session.is_current ? "now" : new Date(session.last_active).toLocaleString()}
+                              </p>
+                            </div>
+                          </div>
+                          {session.is_current ? (
+                            <span className="px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-600">Current</span>
+                          ) : (
+                            <button
+                              onClick={() => handleRevokeSession(session.id)}
+                              className="px-3 py-1.5 rounded-xl bg-red-50 dark:bg-red-500/10 text-red-500 text-xs font-bold transition-all hover:bg-red-100 active:scale-95"
+                            >
+                              Revoke
+                            </button>
+                          )}
                         </div>
-                        <div>
-                          <p className="text-sm font-semibold text-ink">Vite Browser WebApp (Active)</p>
-                          <p className="text-[10px] text-zinc-400">Windows OS · Session ID: Active Token</p>
-                        </div>
-                      </div>
-                      <span className="px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-600">Current</span>
-                    </div>
-                    <div className="flex items-center justify-between p-3.5 bg-zinc-50 dark:bg-zinc-900/50 rounded-2xl border border-[color:var(--border)] opacity-60">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2.5 rounded-xl bg-zinc-400/10 text-zinc-400">
-                          <Smartphone size={20} />
-                        </div>
-                        <div>
-                          <p className="text-sm font-semibold text-ink">Mobile Android App</p>
-                          <p className="text-[10px] text-zinc-400">Pixel 8 Pro · Last active 2 hours ago</p>
-                        </div>
-                      </div>
-                      <button className="px-3 py-1.5 rounded-xl bg-red-50 dark:bg-red-500/10 text-red-500 text-xs font-bold transition-all hover:bg-red-100">Revoke</button>
-                    </div>
+                      ))
+                    )}
                   </div>
                 </div>
+>
 
                 {/* Danger Zone */}
                 <div className="space-y-3">

@@ -38,10 +38,12 @@ export default function AuthShell({
 
         {/* Form card */}
         <div
-          className="rounded-2xl p-6 sm:p-8"
+          className="relative z-10 rounded-2xl p-6 sm:p-8 shadow-2xl transition-all duration-500 hover:shadow-[0_8px_32px_rgba(225,29,72,0.1)]"
           style={{
-            background: "var(--bg-elevated)",
-            border: "1px solid var(--border)",
+            background: "rgba(255, 255, 255, 0.03)",
+            backdropFilter: "blur(20px)",
+            WebkitBackdropFilter: "blur(20px)",
+            border: "1px solid rgba(255, 255, 255, 0.08)",
           }}
         >
           {children}

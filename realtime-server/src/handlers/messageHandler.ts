@@ -2,11 +2,8 @@ import { Server, Socket } from "socket.io";
 import prisma from "../utils/prisma";
 import { messageQueue } from "../queues/messageQueue";
 import { AuthenticatedSocket } from "../middlewares/auth";
-import { Redis } from "ioredis";
+import redis from "../utils/redis";
 import axios from "axios";
-
-const REDIS_URL = process.env.REDIS_URL || "redis://localhost:6379";
-const redis = new Redis(REDIS_URL);
 
 export const registerMessageHandler = (io: Server, socket: AuthenticatedSocket) => {
   const userId = socket.user?.id;
@@ -143,7 +140,8 @@ export const registerMessageHandler = (io: Server, socket: AuthenticatedSocket) 
       if (data.receiverId) {
         const isOnline = await redis.get(`presence:${data.receiverId}`);
         if (!isOnline || isOnline === "offline") {
-          const flaskUrl = process.env.FLASK_API_URL || "http://localhost:5000/api";
+          const flaskUrl = process.env.FLASK_API_URL;
+          if (!flaskUrl) throw new Error("FLASK_API_URL is missing in environment variables");
           axios.post(`${flaskUrl}/notifications/internal/send-push`, {
             user_id: data.receiverId,
             title: `New message from ${message.sender.username}`,

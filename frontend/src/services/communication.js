@@ -25,17 +25,24 @@ class CommunicationService {
         }
 
         this.userId = userId;
-        const realtimeUrl = import.meta.env.VITE_REALTIME_URL || "http://localhost:5001";
+        const realtimeUrl = import.meta.env.VITE_REALTIME_URL;
+        
+        if (!realtimeUrl) {
+            throw new Error("VITE_REALTIME_URL is missing in environment variables");
+        }
+
         console.log("[CommSDK] Connecting to Realtime Engine:", realtimeUrl);
         
         this.socket = io(realtimeUrl, {
             auth: { token },
+            transports: ["websocket", "polling"],
             reconnection: true,
             reconnectionAttempts: this.maxReconnectAttempts,
             reconnectionDelay: 1000,
             reconnectionDelayMax: 5000,
-            randomizationFactor: 0.5,
-            transports: ["websocket", "polling"]
+            timeout: 20000,
+            upgrade: true,
+            rememberUpgrade: true,
         });
 
         this.setupDefaultListeners();

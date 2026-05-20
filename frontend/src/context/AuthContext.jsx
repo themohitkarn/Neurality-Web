@@ -55,7 +55,16 @@ export function AuthProvider({ children }) {
   };
 
   const login = async (credentials) => {
-    const { data } = await authApi.login(credentials);
+    const response = await authApi.login(credentials);
+    if (response.status === 202) {
+      return { requires_verification: true, identifier: response.data.identifier, message: response.data.message };
+    }
+    persistSession(response.data.token, response.data.user);
+    return response.data.user;
+  };
+
+  const verifyLogin = async (payload) => {
+    const { data } = await authApi.loginVerify(payload);
     persistSession(data.token, data.user);
     return data.user;
   };
@@ -78,6 +87,7 @@ export function AuthProvider({ children }) {
     token,
     loading,
     login,
+    verifyLogin,
     signup,
     logout,
   };

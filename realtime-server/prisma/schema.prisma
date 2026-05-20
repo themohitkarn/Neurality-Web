@@ -12,8 +12,10 @@ datasource db {
 model users {
   id                        Int       @id @default(autoincrement())
   username                  String    @unique
-  email                     String    @unique
+  email                     String?   @unique
+  phone_number              String?   @unique
   password_hash             String
+  setup_step                Int       @default(1)
   full_name                 String?
   bio                       String?
   website                   String?
@@ -102,6 +104,7 @@ model users {
   sent_message_requests     message_requests[] @relation("sent_requests")
   received_message_requests message_requests[] @relation("received_requests")
   message_deletions         message_deletions[]
+  linked_accounts           linked_accounts[]
 }
 
 
@@ -963,4 +966,27 @@ model pinned_messages {
   pinned_at       DateTime      @default(now())
 
   conversation    conversations @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+}
+
+model otp_verifications {
+  id              String        @id @default(uuid())
+  identifier      String        
+  otp             String
+  purpose         String        
+  attempts        Int           @default(0)
+  is_verified     Boolean       @default(false)
+  expires_at      DateTime
+  created_at      DateTime      @default(now())
+}
+
+model linked_accounts {
+  id              String        @id @default(uuid())
+  user_id         Int
+  provider        String        
+  identifier      String        @unique
+  is_primary      Boolean       @default(false)
+  verified_at     DateTime?
+  created_at      DateTime      @default(now())
+
+  user            users         @relation(fields: [user_id], references: [id], onDelete: Cascade)
 }

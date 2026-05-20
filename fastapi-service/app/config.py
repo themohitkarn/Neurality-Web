@@ -1,10 +1,10 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
-    ENVIRONMENT: str = "development"
-    DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/fastapi_db"
-    REDIS_URL: str = "redis://localhost:6379/0"
-    KAFKA_BOOTSTRAP_SERVERS: str = "localhost:29092"
+    ENVIRONMENT: str = "production"
+    DATABASE_URL: str
+    REDIS_URL: str
+    KAFKA_BOOTSTRAP_SERVERS: str
     KAFKA_TOPIC: str = "user.setting.updated"
 
     model_config = SettingsConfigDict(

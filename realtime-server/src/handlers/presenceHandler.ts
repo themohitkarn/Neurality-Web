@@ -1,9 +1,6 @@
 import { Server } from "socket.io";
 import { AuthenticatedSocket } from "../middlewares/auth";
-import { Redis } from "ioredis";
-
-const REDIS_URL = process.env.REDIS_URL || "redis://localhost:6379";
-const redis = new Redis(REDIS_URL);
+import redis from "../utils/redis";
 
 export const registerPresenceHandler = (io: Server, socket: AuthenticatedSocket) => {
   const userId = socket.user?.id;

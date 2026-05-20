@@ -1,0 +1,74 @@
+# services:
+#   # Backend (Flask)
+#   - type: web
+#     name: neurality-backend
+#     runtime: docker
+#     dockerContext: ./backend
+#     dockerfilePath: Dockerfile
+#     envVars:
+#       - key: DATABASE_URL
+#         fromDatabase:
+#           name: neurality-db
+#           property: connectionString
+#       - key: CLOUDINARY_CLOUD_NAME
+#         sync: false
+#       - key: CLOUDINARY_API_KEY
+#         sync: false
+#       - key: CLOUDINARY_API_SECRET
+#         sync: false
+#       - key: JWT_SECRET_KEY
+#         generateValue: true
+#       - key: CORS_ORIGINS
+#         value: "*" # Recommended: update to your frontend URL after first deploy
+#       - key: MAX_CONTENT_LENGTH_MB
+#         value: "150"
+
+#   # Realtime Server (Node.js)
+#   - type: web
+#     name: neurality-realtime
+#     runtime: docker
+#     dockerContext: ./realtime-server
+#     dockerfilePath: Dockerfile
+#     envVars:
+#       - key: DATABASE_URL
+#         fromDatabase:
+#           name: neurality-db
+#           property: connectionString
+#       - key: REDIS_URL
+#         fromService:
+#           type: redis
+#           name: neurality-redis
+#           property: connectionString
+#       - key: CORS_ORIGIN
+#         value: "*"
+#       - key: JWT_SECRET
+#         generateValue: true
+
+
+#   # Frontend (Vite)
+#   - type: web
+#     name: neurality-frontend
+#     runtime: docker
+#     dockerContext: ./frontend
+#     dockerfilePath: Dockerfile
+#     envVars:
+#       - key: VITE_API_URL
+#         fromService:
+#           type: web
+#           name: neurality-backend
+#           property: url
+#       - key: VITE_REALTIME_URL
+#         fromService:
+#           type: web
+#           name: neurality-realtime
+#           property: url
+
+
+# databases:
+#   - name: neurality-db
+#     plan: free
+
+# redis:
+#   - name: neurality-redis
+#     plan: free
+#     ipAllowList: [] # Only allow internal connections

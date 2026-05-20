@@ -21,11 +21,6 @@ def send_smtp_email(to_email, otp, purpose="signup", device_info=None):
         logger.info(f"[MOCK EMAIL] Not sending real email to {to_email}. OTP is {otp}")
         return True
 
-    if not smtp_pass:
-        logger.error("SMTP_PASSWORD is not configured. Falling back to logging OTP.")
-        print(f"--- SMTP CONFIG ERROR: OTP for {to_email} is {otp} (No SMTP password set) ---")
-        return False
-
     # Purpose clean display
     purpose_title = "Verify Your Account"
     purpose_desc = "Thank you for joining Neurality. Use the verification code below to complete your registration."
@@ -134,6 +129,11 @@ def send_smtp_email(to_email, otp, purpose="signup", device_info=None):
             print(f"--- RESEND API FAILURE to {to_email}: {exc} (OTP was {otp}) ---")
 
     # Fallback to standard SMTP (Gmail)
+    if not smtp_pass:
+        logger.error("SMTP_PASSWORD is not configured. Falling back to logging OTP.")
+        print(f"--- SMTP CONFIG ERROR: OTP for {to_email} is {otp} (No SMTP password set) ---")
+        return False
+
     try:
         msg = MIMEMultipart("alternative")
         msg["Subject"] = f"[{purpose_title}] Your Neurality Code"

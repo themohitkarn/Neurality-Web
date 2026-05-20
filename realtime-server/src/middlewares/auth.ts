@@ -22,7 +22,7 @@ export const socketAuthMiddleware = async (
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || "neurality-jwt-secret") as {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as {
       user_id: number;
     };
 

@@ -40,13 +40,15 @@ export const REALTIME_API_URL = import.meta.env.VITE_REALTIME_API_URL || `${REAL
 
 const api = axios.create({
   baseURL: API_BASE_URL,
+  withCredentials: true,
 });
 
 const realtimeApi = axios.create({
   baseURL: REALTIME_API_URL,
+  withCredentials: true,
 });
 
-const setupInterceptors = (instance) => {
+const setupRequestInterceptor = (instance) => {
   instance.interceptors.request.use((config) => {
     const token = localStorage.getItem(TOKEN_STORAGE_KEY);
     if (token) {
@@ -56,8 +58,92 @@ const setupInterceptors = (instance) => {
   });
 };
 
-setupInterceptors(api);
-setupInterceptors(realtimeApi);
+setupRequestInterceptor(api);
+setupRequestInterceptor(realtimeApi);
+
+let isRefreshing = false;
+let failedQueue = [];
+
+const processQueue = (error, token = null) => {
+  failedQueue.forEach((prom) => {
+    if (error) {
+      prom.reject(error);
+    } else {
+      prom.resolve(token);
+    }
+  });
+  failedQueue = [];
+};
+
+const setupResponseInterceptor = (instance) => {
+  instance.interceptors.response.use(
+    (response) => response,
+    async (error) => {
+      const originalRequest = error.config;
+      
+      // Check if error is 401 and hasn't been retried yet
+      if (error.response?.status === 401 && !originalRequest._retry) {
+        // Skip retry if it was a refresh or credentials request to prevent infinite loops
+        const url = originalRequest.url || "";
+        if (
+          url.includes("/auth/refresh") ||
+          url.includes("/auth/login") ||
+          url.includes("/auth/signup") ||
+          url.includes("/auth/check-identity")
+        ) {
+          return Promise.reject(error);
+        }
+
+        if (isRefreshing) {
+          return new Promise((resolve, reject) => {
+            failedQueue.push({ resolve, reject });
+          })
+            .then((token) => {
+              originalRequest.headers.Authorization = `Bearer ${token}`;
+              return instance(originalRequest);
+            })
+            .catch((err) => Promise.reject(err));
+        }
+
+        originalRequest._retry = true;
+        isRefreshing = true;
+
+        try {
+          // Send request to /auth/refresh to rotate cookies and get a new access token
+          const response = await axios.post(
+            `${API_BASE_URL}/auth/refresh`,
+            {},
+            { withCredentials: true }
+          );
+
+          const { token } = response.data;
+          localStorage.setItem(TOKEN_STORAGE_KEY, token);
+
+          // Update common authorization header
+          api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+          realtimeApi.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+
+          processQueue(null, token);
+
+          originalRequest.headers.Authorization = `Bearer ${token}`;
+          return instance(originalRequest);
+        } catch (refreshError) {
+          processQueue(refreshError, null);
+          // If refresh fails, session is completely invalid. Clear tokens.
+          localStorage.removeItem(TOKEN_STORAGE_KEY);
+          return Promise.reject(refreshError);
+        } finally {
+          isRefreshing = false;
+        }
+      }
+
+      return Promise.reject(error);
+    }
+  );
+};
+
+setupResponseInterceptor(api);
+setupResponseInterceptor(realtimeApi);
 
 export const getErrorMessage = (error) =>
   error?.response?.data?.message || "Something went wrong. Please try again.";

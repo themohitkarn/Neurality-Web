@@ -12,9 +12,10 @@ comment_bp = Blueprint("comments", __name__)
 @comment_bp.post("/add")
 @token_required
 def add_comment():
+    import bleach
     payload = request.get_json(silent=True) or {}
     post_id = payload.get("post_id")
-    content = (payload.get("content") or "").strip()
+    content = bleach.clean((payload.get("content") or "").strip())
 
     if not post_id or not content:
         return jsonify({"message": "post_id and content are required."}), 400

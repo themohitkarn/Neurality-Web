@@ -10,8 +10,23 @@ export const registerMessageHandler = (io: Server, socket: AuthenticatedSocket) 
   if (!userId) return;
 
   // 1. Join Conversation Room
-  socket.on("conversation:join", (conversationId: string) => {
-    socket.join(`conversation:${conversationId}`);
+  socket.on("conversation:join", async (conversationId: string) => {
+    try {
+      const member = await prisma.conversation_members.findFirst({
+        where: {
+          conversation_id: conversationId,
+          user_id: userId
+        }
+      });
+      if (!member) {
+        socket.emit("error", { message: "Unauthorized: You are not a member of this conversation." });
+        return;
+      }
+      socket.join(`conversation:${conversationId}`);
+    } catch (err) {
+      console.error("Error joining conversation room:", err);
+      socket.emit("error", { message: "Failed to join conversation room." });
+    }
   });
 
   // 2. Send Message
@@ -76,7 +91,19 @@ export const registerMessageHandler = (io: Server, socket: AuthenticatedSocket) 
         }
       });
 
-      const activeSettings = conversation?.chat_settings[0] as any;
+      if (!conversation) {
+        socket.emit("error", { message: "Conversation not found." });
+        return;
+      }
+
+      // Verify that the user is actually a member of this conversation
+      const isMember = conversation.members.some(m => m.user_id === userId);
+      if (!isMember) {
+        socket.emit("error", { message: "Unauthorized: You are not a member of this conversation." });
+        return;
+      }
+
+      const activeSettings = conversation.chat_settings[0] as any;
       const ttl = activeSettings?.disappearing_timer || 0;
 
       if (conversation?.type === "direct") {

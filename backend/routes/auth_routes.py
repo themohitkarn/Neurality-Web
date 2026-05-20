@@ -10,7 +10,8 @@ from models.user import User
 from models.otp_verification import OtpVerification
 from models.device_session import DeviceSession
 from utils.image_handler import delete_image, save_uploaded_image
-from utils.jwt_helper import generate_token, token_required
+from utils.jwt_helper import generate_access_token, generate_refresh_token_in_db, token_required
+from utils.otp_helper import generate_and_dispatch_otp, hash_otp
 from utils.device_helper import parse_device_name, get_device_location
 
 
@@ -83,17 +84,26 @@ def signup():
     db.session.add(session)
     db.session.commit()
 
-    token = generate_token(user.id, session_id=session.id)
-    return (
-        jsonify(
-            {
-                "message": "Signup successful.",
-                "token": token,
-                "user": user.to_dict(viewer_id=user.id, include_email=True, include_settings=True),
-            }
-        ),
-        201,
+    access_token = generate_access_token(user.id, session_id=session.id)
+    refresh_token = generate_refresh_token_in_db(user.id, session_id=session.id)
+
+    response = jsonify(
+        {
+            "message": "Signup successful.",
+            "token": access_token,
+            "user": user.to_dict(viewer_id=user.id, include_email=True, include_settings=True),
+        }
     )
+    if refresh_token:
+        response.set_cookie(
+            "refresh_token",
+            refresh_token,
+            httponly=True,
+            secure=True,
+            samesite="None",
+            max_age=7 * 24 * 60 * 60  # 7 days
+        )
+    return response, 201
 
 
 def get_client_ip():
@@ -161,22 +171,15 @@ def login():
         active_session_id = new_session.id
 
     if not is_recognized:
-        otp = str(random.randint(100000, 999999))
-        expires_at = datetime.utcnow() + timedelta(minutes=10)
-        purpose = "new_device_login"
+        device_info = {
+            "ip": client_ip,
+            "device": parse_device_name(request.headers.get("User-Agent", "")),
+            "location": get_device_location(client_ip)
+        }
         
-        OtpVerification.query.filter_by(identifier=identifier, purpose=purpose, is_verified=False).delete()
-        
-        verification = OtpVerification(
-            identifier=identifier,
-            otp=otp,
-            purpose=purpose,
-            expires_at=expires_at
-        )
-        db.session.add(verification)
-        db.session.commit()
-        
-        print(f"--- MOCK OTP SENT for New Device Login: {otp} (IP: {client_ip}) ---")
+        res = generate_and_dispatch_otp(identifier, "new_device_login", device_info)
+        if not res.get("success") and res.get("status_code") != 200:
+            return jsonify({"message": res.get("message", "Unable to send verification code.")}), res.get("status_code", 400)
         
         return jsonify({
             "message": "New device detected. Please verify your login.",
@@ -189,14 +192,26 @@ def login():
     user.failed_login_attempts = 0
     db.session.commit()
 
-    token = generate_token(user.id, session_id=active_session_id)
-    return jsonify(
+    access_token = generate_access_token(user.id, session_id=active_session_id)
+    refresh_token = generate_refresh_token_in_db(user.id, session_id=active_session_id)
+
+    response = jsonify(
         {
             "message": "Login successful.",
-            "token": token,
+            "token": access_token,
             "user": user.to_dict(viewer_id=user.id, include_email=True, include_settings=True),
         }
     )
+    if refresh_token:
+        response.set_cookie(
+            "refresh_token",
+            refresh_token,
+            httponly=True,
+            secure=True,
+            samesite="None",
+            max_age=7 * 24 * 60 * 60  # 7 days
+        )
+    return response
 
 @auth_bp.post("/login-verify")
 @limiter.limit("5 per minute")
@@ -212,16 +227,29 @@ def login_verify():
         identifier=identifier, purpose="new_device_login", is_verified=False
     ).order_by(OtpVerification.created_at.desc()).first()
 
-    if not verification or verification.expires_at < datetime.utcnow() or verification.otp != otp:
-        if verification:
-            verification.attempts += 1
-            db.session.commit()
-        return jsonify({"message": "Invalid or expired OTP."}), 400
+    if not verification:
+        return jsonify({"message": "No pending verification code found."}), 404
+
+    if verification.expires_at < datetime.utcnow():
+        return jsonify({"message": "Verification code has expired."}), 400
+
+    if verification.attempts >= 5:
+        return jsonify({"message": "Verification code locked due to too many failed attempts. Please request a new code."}), 429
+
+    # Compare hashed OTP
+    if verification.otp != hash_otp(otp):
+        verification.attempts += 1
+        db.session.commit()
+        remaining = 5 - verification.attempts
+        return jsonify({"message": f"Invalid verification code. {remaining} attempts remaining." if remaining > 0 else "Code locked due to too many failed attempts."}), 400
 
     verification.is_verified = True
     user = User.query.filter(
         or_(func.lower(User.email) == identifier.lower(), func.lower(User.username) == identifier.lower(), User.phone_number == identifier)
     ).first()
+
+    if not user:
+        return jsonify({"message": "User not found."}), 404
 
     client_ip = get_client_ip()
     user_agent = request.headers.get("User-Agent", "")
@@ -249,14 +277,26 @@ def login_verify():
     user.failed_login_attempts = 0
     db.session.commit()
 
-    token = generate_token(user.id, session_id=session.id)
-    return jsonify(
+    access_token = generate_access_token(user.id, session_id=session.id)
+    refresh_token = generate_refresh_token_in_db(user.id, session_id=session.id)
+
+    response = jsonify(
         {
             "message": "Login successful.",
-            "token": token,
+            "token": access_token,
             "user": user.to_dict(viewer_id=user.id, include_email=True, include_settings=True),
         }
     )
+    if refresh_token:
+        response.set_cookie(
+            "refresh_token",
+            refresh_token,
+            httponly=True,
+            secure=True,
+            samesite="None",
+            max_age=7 * 24 * 60 * 60  # 7 days
+        )
+    return response
 
 
 @auth_bp.get("/me")
@@ -290,8 +330,10 @@ def change_password():
         return jsonify({"message": "New password must be at least 6 characters."}), 400
 
     g.current_user.set_password(new_password)
+    # Revoke all device sessions on password change to force re-authentication
+    DeviceSession.query.filter_by(user_id=g.current_user.id).delete()
     db.session.commit()
-    return jsonify({"message": "Password changed successfully."})
+    return jsonify({"message": "Password changed successfully. All sessions revoked. Please log in again."})
 
 
 @auth_bp.post("/delete-account")
@@ -363,25 +405,20 @@ def send_otp():
     if not identifier:
         return jsonify({"message": "Identifier is required."}), 400
 
-    otp = str(random.randint(100000, 999999))
-    expires_at = datetime.utcnow() + timedelta(minutes=10)
+    client_ip = get_client_ip()
+    device_info = {
+        "ip": client_ip,
+        "device": parse_device_name(request.headers.get("User-Agent", "")),
+        "location": get_device_location(client_ip)
+    }
 
-    # Invalidate previous unverified OTPs for this identifier/purpose
-    OtpVerification.query.filter_by(identifier=identifier, purpose=purpose, is_verified=False).delete()
-
-    verification = OtpVerification(
-        identifier=identifier,
-        otp=otp,
-        purpose=purpose,
-        expires_at=expires_at
-    )
-    db.session.add(verification)
-    db.session.commit()
-
-    # Mock sending OTP
-    print(f"--- MOCK OTP SENT to {identifier}: {otp} (Purpose: {purpose}) ---")
-
-    return jsonify({"message": "OTP sent successfully.", "otp_id": verification.id})
+    res = generate_and_dispatch_otp(identifier, purpose, device_info)
+    status_code = res.get("status_code", 200)
+    
+    res_copy = dict(res)
+    res_copy.pop("status_code", None)
+    
+    return jsonify(res_copy), status_code
 
 @auth_bp.post("/verify-otp")
 @limiter.limit("10 per minute")
@@ -399,15 +436,20 @@ def verify_otp():
     ).order_by(OtpVerification.created_at.desc()).first()
 
     if not verification:
-        return jsonify({"message": "No pending OTP verification found."}), 404
+        return jsonify({"message": "No pending verification code found."}), 404
 
     if verification.expires_at < datetime.utcnow():
-        return jsonify({"message": "OTP has expired."}), 400
+        return jsonify({"message": "Verification code has expired."}), 400
 
-    if verification.otp != otp:
+    if verification.attempts >= 5:
+        return jsonify({"message": "Verification code locked due to too many failed attempts. Please request a new code."}), 429
+
+    # Compare hashed OTP
+    if verification.otp != hash_otp(otp):
         verification.attempts += 1
         db.session.commit()
-        return jsonify({"message": "Invalid OTP."}), 400
+        remaining = 5 - verification.attempts
+        return jsonify({"message": f"Invalid verification code. {remaining} attempts remaining." if remaining > 0 else "Code locked due to too many failed attempts."}), 400
 
     verification.is_verified = True
     db.session.commit()
@@ -536,3 +578,46 @@ def unlink_identifier():
         "message": f"Successfully unlinked {identifier_type}.",
         "user": g.current_user.to_dict(viewer_id=g.current_user.id, include_email=True, include_settings=True)
     })
+
+
+@auth_bp.post("/refresh")
+def refresh_token():
+    old_token = request.cookies.get("refresh_token")
+    if not old_token:
+        return jsonify({"message": "Refresh token missing."}), 401
+
+    from utils.jwt_helper import rotate_refresh_token
+    new_access_token, new_refresh_token = rotate_refresh_token(old_token)
+
+    if not new_access_token:
+        return jsonify({"message": "Invalid or expired session. Please log in again."}), 401
+
+    response = jsonify({
+        "token": new_access_token,
+        "message": "Token refreshed successfully."
+    })
+
+    response.set_cookie(
+        "refresh_token",
+        new_refresh_token,
+        httponly=True,
+        secure=True,
+        samesite="None",
+        max_age=7 * 24 * 60 * 60  # 7 days
+    )
+    return response
+
+
+@auth_bp.post("/logout")
+def logout():
+    old_token = request.cookies.get("refresh_token")
+    if old_token:
+        from models.device_session import DeviceSession
+        session = DeviceSession.query.filter_by(refresh_token=old_token).first()
+        if session:
+            db.session.delete(session)
+            db.session.commit()
+
+    response = jsonify({"message": "Logged out successfully."})
+    response.delete_cookie("refresh_token", httponly=True, secure=True, samesite="None")
+    return response

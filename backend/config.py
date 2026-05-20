@@ -6,7 +6,10 @@ BASE_DIR = Path(__file__).resolve().parent
 
 
 class Config:
-    SECRET_KEY = os.getenv("SECRET_KEY", "neurality-dev-secret")
+    _secret = os.getenv("SECRET_KEY")
+    if not _secret:
+        raise RuntimeError("SECRET_KEY is missing in environment variables")
+    SECRET_KEY = _secret
     JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", SECRET_KEY)
 
     _db_url = os.getenv("DATABASE_URL")
@@ -45,3 +48,17 @@ class Config:
     REEL_VIDEO_FOLDER = VIDEO_FOLDER / "reels"
     VIDEO_THUMBNAIL_FOLDER = VIDEO_FOLDER / "thumbnails"
     VIDEO_TEMP_FOLDER = VIDEO_FOLDER / "tmp"
+    
+    # ── SMTP Email Config ──
+    SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
+    SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+    SMTP_USER = os.getenv("SMTP_USER", "mohitkarn123@gmail.com")
+    SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
+    SMTP_SENDER = os.getenv("SMTP_SENDER", "mohitkarn123@gmail.com")
+    ENABLE_REAL_EMAILS = os.getenv("ENABLE_REAL_EMAILS", "true").lower() == "true"
+
+    # ── Twilio SMS Config ──
+    TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
+    TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
+    TWILIO_PHONE_NUMBER = os.getenv("TWILIO_PHONE_NUMBER")
+    ENABLE_REAL_SMS = os.getenv("ENABLE_REAL_SMS", "false").lower() == "true"

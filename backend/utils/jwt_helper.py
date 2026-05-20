@@ -5,16 +5,57 @@ import jwt
 from flask import current_app, g, jsonify, request
 
 
-def generate_token(user_id, session_id=None):
+import secrets
+import uuid
+
+def generate_access_token(user_id, session_id=None):
     now = datetime.now(timezone.utc)
     payload = {
         "user_id": user_id,
         "iat": now,
-        "exp": now + timedelta(days=current_app.config["JWT_EXPIRES_IN_DAYS"]),
+        "exp": now + timedelta(minutes=15), # Short-lived access token
     }
     if session_id:
         payload["session_id"] = session_id
     return jwt.encode(payload, current_app.config["JWT_SECRET_KEY"], algorithm="HS256")
+
+
+def generate_refresh_token_in_db(user_id, session_id):
+    from extensions import db
+    from models.device_session import DeviceSession
+
+    # Cryptographically secure 64-character token
+    token = secrets.token_hex(32)
+    session = db.session.get(DeviceSession, session_id)
+    if session:
+        session.refresh_token = token
+        db.session.commit()
+        return token
+    return None
+
+
+def rotate_refresh_token(old_token):
+    from extensions import db
+    from models.device_session import DeviceSession
+
+    session = DeviceSession.query.filter_by(refresh_token=old_token).first()
+    if not session:
+        return None, None
+
+    # Rotate token to prevent replay attacks
+    new_token = secrets.token_hex(32)
+    session.refresh_token = new_token
+    session.last_active = datetime.utcnow()
+    db.session.commit()
+
+    # Generate fresh access token
+    new_access_token = generate_access_token(session.user_id, session_id=session.id)
+    return new_access_token, new_token
+
+
+def generate_token(user_id, session_id=None):
+    # Backward compatibility helper
+    return generate_access_token(user_id, session_id)
 
 
 def decode_token(token):

@@ -33,7 +33,15 @@ if (!CORS_ORIGIN) {
   throw new Error("CORS_ORIGIN is missing in environment variables");
 }
 
-app.use(cors());
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error("JWT_SECRET is missing in environment variables");
+}
+
+app.use(cors({
+  origin: CORS_ORIGIN,
+  credentials: true
+}));
 app.use(express.json());
 
 // --- FILE UPLOAD SETUP ---
@@ -99,7 +107,7 @@ const restAuthMiddleware = (req: express.Request, res: express.Response, next: e
   const token = req.headers.authorization?.split(" ")[1];
   if (!token) return res.status(401).json({ message: "No token provided" });
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || "neurality-jwt-secret") as { user_id: number };
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { user_id: number };
     (req as any).userId = decoded.user_id;
     next();
   } catch (err) {
@@ -242,31 +250,56 @@ app.get("/api/chat/dm/:targetUserId", restAuthMiddleware, async (req, res) => {
 
 app.get("/api/messages/:conversationId", restAuthMiddleware, async (req, res) => {
   const conversationId = req.params.conversationId as string;
-  const messages = await prisma.messages.findMany({
-    where: { 
-      conversation_id: conversationId, 
-      is_deleted: false,
-      deletions: { none: { user_id: (req as any).userId } }
-    },
-    include: { 
-      reactions: { include: { user: { select: { id: true, username: true } } } }, 
-      reply_to: { select: { id: true, content: true, sender_id: true, type: true, is_deleted: true } },
-      sender: { select: { id: true, username: true, profile_pic: true } }
-    },
-    orderBy: { created_at: 'asc' }
-  });
-  res.json({ messages });
+  const userId = (req as any).userId;
+
+  try {
+    // 1. Authorize membership
+    const member = await prisma.conversation_members.findFirst({
+      where: { conversation_id: conversationId, user_id: userId }
+    });
+    if (!member) {
+      return res.status(403).json({ message: "Unauthorized: You are not a member of this conversation." });
+    }
+
+    const messages = await prisma.messages.findMany({
+      where: { 
+        conversation_id: conversationId, 
+        is_deleted: false,
+        deletions: { none: { user_id: userId } }
+      },
+      include: { 
+        reactions: { include: { user: { select: { id: true, username: true } } } }, 
+        reply_to: { select: { id: true, content: true, sender_id: true, type: true, is_deleted: true } },
+        sender: { select: { id: true, username: true, profile_pic: true } }
+      },
+      orderBy: { created_at: 'asc' }
+    });
+    res.json({ messages });
+  } catch (err) {
+    console.error("Messages fetch error:", err);
+    res.status(500).json({ message: "Internal server error" });
+  }
 });
 
 app.get("/api/conversations/:conversationId/media", restAuthMiddleware, async (req, res) => {
   const conversationId = req.params.conversationId as string;
+  const userId = (req as any).userId;
+
   try {
+    // 1. Authorize membership
+    const member = await prisma.conversation_members.findFirst({
+      where: { conversation_id: conversationId, user_id: userId }
+    });
+    if (!member) {
+      return res.status(403).json({ message: "Unauthorized: You are not a member of this conversation." });
+    }
+
     const mediaMessages = await prisma.messages.findMany({
       where: {
         conversation_id: conversationId,
         is_deleted: false,
         type: { in: ["image", "video", "shared_post", "shared_reel"] },
-        deletions: { none: { user_id: (req as any).userId } }
+        deletions: { none: { user_id: userId } }
       },
       select: {
         id: true,
@@ -291,6 +324,7 @@ app.get("/api/conversations/:conversationId/media", restAuthMiddleware, async (r
 
     res.json({ media });
   } catch (err) {
+    console.error("Media fetch error:", err);
     res.status(500).json({ media: [] });
   }
 });

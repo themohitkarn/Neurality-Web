@@ -9,7 +9,7 @@ class OtpVerification(db.Model):
 
     id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     identifier = db.Column(db.String(120), nullable=False)
-    otp = db.Column(db.String(10), nullable=False)
+    otp = db.Column(db.String(64), nullable=False)
     purpose = db.Column(db.String(50), nullable=False)
     attempts = db.Column(db.Integer, nullable=False, default=0)
     is_verified = db.Column(db.Boolean, nullable=False, default=False)

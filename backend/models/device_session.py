@@ -12,6 +12,7 @@ class DeviceSession(db.Model):
     device_name = db.Column(db.String(100), nullable=True)
     location = db.Column(db.String(100), nullable=True, default="Unknown Location")
     last_active = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    refresh_token = db.Column(db.String(255), nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
     user = db.relationship("User", backref=db.backref("device_sessions", lazy="dynamic", cascade="all, delete-orphan"))

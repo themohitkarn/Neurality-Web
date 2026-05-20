@@ -73,6 +73,15 @@ def create_app():
         app.logger.info('Headers: %s', request.headers)
         app.logger.info('Body: %s', request.get_data())
 
+    @app.after_request
+    def add_security_headers(response):
+        response.headers['X-Frame-Options'] = 'DENY'
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+        if request.path.startswith('/api/'):
+            response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        return response
+
     socketio.init_app(
         app,
         cors_allowed_origins="origins",
@@ -110,6 +119,26 @@ def create_app():
         except Exception as e:
             db.session.rollback()
             app.logger.error(f"Error altering table users to add theme_metadata: {e}")
+            
+        try:
+            # PostgreSQL column type alter for SHA256 hashed OTPs
+            db.session.execute(db.text("ALTER TABLE otp_verifications ALTER COLUMN otp TYPE VARCHAR(64);"))
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            try:
+                # MySQL style fallback
+                db.session.execute(db.text("ALTER TABLE otp_verifications MODIFY COLUMN otp VARCHAR(64);"))
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+
+        try:
+            # Add rotating refresh token column to device sessions
+            db.session.execute(db.text("ALTER TABLE device_sessions ADD COLUMN IF NOT EXISTS refresh_token VARCHAR(255);"))
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
 
     @app.get("/api/health")
     def health_check():
@@ -119,6 +148,15 @@ def create_app():
     def handle_large_file(_error):
         max_mb = app.config["MAX_CONTENT_LENGTH"] // (1024 * 1024)
         return jsonify({"message": f"File is too large. Maximum size is {max_mb}MB."}), 413
+
+    @app.errorhandler(Exception)
+    def handle_global_exception(exc):
+        # Log the complete traceback on the server side
+        app.logger.error("Unhandled internal exception: %s", str(exc), exc_info=True)
+        # If in debug mode, raise it so standard debugger/terminal output is active
+        if app.debug:
+            raise exc
+        return jsonify({"message": "Internal server error"}), 500
 
     return app
 

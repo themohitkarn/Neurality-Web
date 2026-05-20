@@ -9,6 +9,15 @@ export const registerGroupHandler = (io: Server, socket: AuthenticatedSocket) =>
   // 1. Join Group
   socket.on("group:join", async (data: { conversationId: string }) => {
     try {
+      // Validate group conversation type to prevent unauthorized joining/escalation
+      const conversation = await prisma.conversations.findUnique({
+        where: { id: data.conversationId }
+      });
+      if (!conversation || conversation.type !== "group") {
+        socket.emit("error", { message: "Invalid group conversation." });
+        return;
+      }
+
       const member = await prisma.conversation_members.upsert({
         where: {
           conversation_id_user_id: {
@@ -50,9 +59,31 @@ export const registerGroupHandler = (io: Server, socket: AuthenticatedSocket) =>
     }
   });
 
-  // 3. Update Group Info (Admin only check can be added)
+  // 3. Update Group Info (Admin only check)
   socket.on("group:update", async (data: { conversationId: string; name?: string; description?: string }) => {
     try {
+      // 1. Verify group conversation type
+      const conversation = await prisma.conversations.findUnique({
+        where: { id: data.conversationId }
+      });
+      if (!conversation || conversation.type !== "group") {
+        socket.emit("error", { message: "Invalid group conversation." });
+        return;
+      }
+
+      // 2. Check if user is an admin of the group
+      const member = await prisma.conversation_members.findFirst({
+        where: {
+          conversation_id: data.conversationId,
+          user_id: userId
+        }
+      });
+      
+      if (!member || member.role !== "admin") {
+        socket.emit("error", { message: "Unauthorized: Only group admins can update group details." });
+        return;
+      }
+
       const updated = await prisma.conversations.update({
         where: { id: data.conversationId },
         data: { name: data.name, description: data.description }
@@ -61,6 +92,7 @@ export const registerGroupHandler = (io: Server, socket: AuthenticatedSocket) =>
       io.to(`conversation:${data.conversationId}`).emit("group:updated", updated);
     } catch (err) {
       console.error("Group update error:", err);
+      socket.emit("error", { message: "Failed to update group information." });
     }
   });
 };

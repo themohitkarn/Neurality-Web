@@ -109,7 +109,7 @@ def send_smtp_email(to_email, otp, purpose="signup", device_info=None):
             # If domain is verified, ensure we send from @neurality.online rather than gmail fallback
             if is_custom_verified:
                 if not from_sender or "@gmail.com" in from_sender or "mohitkarn123" in from_sender:
-                    from_sender = "Neurality <noreply@neurality.online>"
+                    from_sender = "Neurality <otp@neurality.online>"
             else:
                 from_sender = "Neurality <onboarding@resend.dev>"
 

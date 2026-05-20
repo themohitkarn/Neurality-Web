@@ -12,11 +12,12 @@ const getEnvVariable = (key, localDefault, prodDefault) => {
   return isLocal ? localDefault : prodDefault;
 };
 
-export const API_BASE_URL = getEnvVariable(
+const rawApiUrl = getEnvVariable(
   "VITE_API_URL", 
   "http://localhost:5000/api", 
   "https://neurality-web-api.onrender.com/api"
 );
+export const API_BASE_URL = rawApiUrl.endsWith("/api") ? rawApiUrl : `${rawApiUrl}/api`;
 
 const getBaseUrl = () => {
   try {

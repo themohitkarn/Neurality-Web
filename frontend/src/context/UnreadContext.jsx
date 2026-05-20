@@ -1,15 +1,22 @@
 import { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { useSocket } from "./SocketContext";
+import { useAuth } from "./AuthContext";
 import { chatApi } from "../services/api";
 
 const UnreadContext = createContext(null);
 
 export function UnreadProvider({ children }) {
   const { socket } = useSocket();
+  const { token } = useAuth();
   const [totalUnread, setTotalUnread] = useState(0);
   const [chatUnreads, setChatUnreads] = useState({}); // chat_id -> count
 
   const fetchInitialUnread = useCallback(async () => {
+    if (!token) {
+      setTotalUnread(0);
+      setChatUnreads({});
+      return;
+    }
     try {
       const { data } = await chatApi.getConversations();
       const users = data.users || [];
@@ -24,9 +31,11 @@ export function UnreadProvider({ children }) {
       });
       setChatUnreads(unreads);
     } catch (err) {
-      console.error("[Unread] Initial fetch failed", err);
+      if (err.response?.status !== 401) {
+        console.error("[Unread] Initial fetch failed", err);
+      }
     }
-  }, []);
+  }, [token]);
 
   useEffect(() => {
     fetchInitialUnread();

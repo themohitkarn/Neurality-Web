@@ -843,7 +843,6 @@ export default function Settings() {
                     )}
                   </div>
                 </div>
->
 
                 {/* Danger Zone */}
                 <div className="space-y-3">

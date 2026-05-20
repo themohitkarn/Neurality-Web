@@ -95,6 +95,7 @@ def send_smtp_email(to_email, otp, purpose="signup", device_info=None):
     if resend_api_key:
         import urllib.request
         import json
+        import urllib.error
         try:
             url = "https://api.resend.com/emails"
             headers = {
@@ -104,7 +105,12 @@ def send_smtp_email(to_email, otp, purpose="signup", device_info=None):
             # Sandbox onboarding email must be onboarding@resend.dev unless a custom domain is verified
             from_sender = smtp_sender
             is_custom_verified = current_app.config.get("CUSTOM_DOMAIN_VERIFIED", False)
-            if not is_custom_verified or "onboarding@resend.dev" in from_sender:
+            
+            # If domain is verified, ensure we send from @neurality.online rather than gmail fallback
+            if is_custom_verified:
+                if not from_sender or "@gmail.com" in from_sender or "mohitkarn123" in from_sender:
+                    from_sender = "Neurality <noreply@neurality.online>"
+            else:
                 from_sender = "Neurality <onboarding@resend.dev>"
 
             payload = {
@@ -124,6 +130,10 @@ def send_smtp_email(to_email, otp, purpose="signup", device_info=None):
                 res_body = response.read().decode("utf-8")
                 logger.info(f"Successfully sent Resend API OTP email to {to_email}: {res_body}")
                 return True
+        except urllib.error.HTTPError as exc:
+            err_body = exc.read().decode("utf-8")
+            logger.error(f"Resend API HTTP Error {exc.code}: {err_body}")
+            print(f"--- RESEND API FAILURE: HTTP {exc.code} - {err_body} (OTP was {otp}) ---")
         except Exception as exc:
             logger.error(f"Failed to send Resend API email to {to_email}: {exc}", exc_info=True)
             print(f"--- RESEND API FAILURE to {to_email}: {exc} (OTP was {otp}) ---")

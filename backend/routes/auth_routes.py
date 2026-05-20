@@ -45,10 +45,10 @@ def signup():
         return jsonify({"message": "Password must be at least 6 characters long."}), 400
 
     existing_user = User.query.filter(
-        or_(func.lower(User.username) == username.lower(), func.lower(User.email) == email)
+        func.lower(User.username) == username.lower()
     ).first()
     if existing_user:
-        return jsonify({"message": "An account with that username or email already exists."}), 409
+        return jsonify({"message": "An account with that username already exists."}), 409
 
     profile_pic_path = None
     if "profile_pic" in request.files and request.files["profile_pic"].filename:
@@ -321,6 +321,22 @@ def check_identity():
     if not identifier:
         return jsonify({"message": "Identifier is required."}), 400
     
+    # For signup:
+    # 1. We ONLY want to block if the username is already taken.
+    # 2. Email and phone number are allowed to be reused across multiple accounts.
+    if action == "signup":
+        user_by_username = User.query.filter(func.lower(User.username) == identifier).first()
+        if user_by_username:
+            return jsonify({"message": "An account with this username already exists."}), 409
+        
+        # If it's an email or phone, we allow it (exists = False for signup check so signup proceeds)
+        return jsonify({
+            "message": "Identity check passed.",
+            "exists": False
+        })
+
+    # For login:
+    # We still need to find the user by username, email, or phone number to let them log in.
     user = User.query.filter(
         or_(
             func.lower(User.email) == identifier,
@@ -329,14 +345,12 @@ def check_identity():
         )
     ).first()
 
-    if action == "signup" and user:
-        return jsonify({"message": "An account with this identifier already exists."}), 409
     if action == "login" and not user:
         return jsonify({"message": "No account found with this identifier."}), 404
 
     return jsonify({
         "message": "Identity check passed.",
-        "exists": bool(user)
+        "exists": True
     })
 
 @auth_bp.post("/send-otp")

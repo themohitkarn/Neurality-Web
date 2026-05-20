@@ -11,8 +11,8 @@ class User(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), unique=True, nullable=False, index=True)
-    email = db.Column(db.String(120), unique=True, nullable=True, index=True)
-    phone_number = db.Column(db.String(20), unique=True, nullable=True, index=True)
+    email = db.Column(db.String(120), unique=False, nullable=True, index=True)
+    phone_number = db.Column(db.String(20), unique=False, nullable=True, index=True)
     password_hash = db.Column(db.String(255), nullable=False)
     setup_step = db.Column(db.Integer, nullable=False, default=1)
     full_name = db.Column(db.String(120), nullable=True)

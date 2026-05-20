@@ -1,4 +1,5 @@
 import { io } from "socket.io-client";
+import { REALTIME_BASE_URL } from "./api";
 
 class CommunicationService {
     constructor() {
@@ -25,11 +26,7 @@ class CommunicationService {
         }
 
         this.userId = userId;
-        const realtimeUrl = import.meta.env.VITE_REALTIME_URL;
-        
-        if (!realtimeUrl) {
-            throw new Error("VITE_REALTIME_URL is missing in environment variables");
-        }
+        const realtimeUrl = REALTIME_BASE_URL;
 
         console.log("[CommSDK] Connecting to Realtime Engine:", realtimeUrl);
         

@@ -3,26 +3,37 @@ import axios from "axios";
 
 export const TOKEN_STORAGE_KEY = "neurality_token";
 
-if (!import.meta.env.VITE_API_URL) {
-  throw new Error("VITE_API_URL is missing in environment variables");
-}
-if (!import.meta.env.VITE_REALTIME_URL) {
-  throw new Error("VITE_REALTIME_URL is missing in environment variables");
-}
+const getEnvVariable = (key, localDefault, prodDefault) => {
+  const envVal = import.meta.env[key];
+  if (envVal) return envVal;
+  
+  const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+  console.warn(`[EnvCheck] ${key} is missing in environment variables. Dynamically falling back.`);
+  return isLocal ? localDefault : prodDefault;
+};
 
-export const API_BASE_URL = import.meta.env.VITE_API_URL;
+export const API_BASE_URL = getEnvVariable(
+  "VITE_API_URL", 
+  "http://localhost:5000/api", 
+  "https://neurality-web-api.onrender.com/api"
+);
 
 const getBaseUrl = () => {
   try {
     const url = new URL(API_BASE_URL);
     return `${url.protocol}//${url.hostname}`;
   } catch (e) {
-    throw new Error("Invalid VITE_API_URL format");
+    console.error("Invalid VITE_API_URL format:", API_BASE_URL);
+    return window.location.origin;
   }
 };
 
 export const SOCKET_BASE_URL = getBaseUrl();
-export const REALTIME_BASE_URL = import.meta.env.VITE_REALTIME_URL;
+export const REALTIME_BASE_URL = getEnvVariable(
+  "VITE_REALTIME_URL",
+  "http://localhost:5001",
+  "https://neurality-realtime.onrender.com"
+);
 export const REALTIME_API_URL = import.meta.env.VITE_REALTIME_API_URL || `${REALTIME_BASE_URL}/api`;
 
 

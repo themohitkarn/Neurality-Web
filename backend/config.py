@@ -49,16 +49,9 @@ class Config:
     VIDEO_THUMBNAIL_FOLDER = VIDEO_FOLDER / "thumbnails"
     VIDEO_TEMP_FOLDER = VIDEO_FOLDER / "tmp"
     
-    # ── SMTP Email Config ──
-    SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
-    SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
-    SMTP_USER = os.getenv("SMTP_USER", "mohitkarn123@gmail.com")
-    SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
-    SMTP_SENDER = os.getenv("SMTP_SENDER", "mohitkarn123@gmail.com")
+    # ── Resend Email Config ──
     ENABLE_REAL_EMAILS = os.getenv("ENABLE_REAL_EMAILS", "true").lower() == "true"
     RESEND_API_KEY = os.getenv("RESEND_API_KEY")
-    CUSTOM_DOMAIN_VERIFIED = os.getenv("CUSTOM_DOMAIN_VERIFIED", "false").lower() == "true"
-    RESEND_SENDER = os.getenv("RESEND_SENDER", "Neurality <noreply@neurality.online>")
 
     # ── Twilio SMS Config ──
     TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")

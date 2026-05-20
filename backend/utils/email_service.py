@@ -1,25 +1,24 @@
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-import logging
+import resend
 from flask import current_app
+import logging
 
 logger = logging.getLogger(__name__)
 
-def send_smtp_email(to_email, otp, purpose="signup", device_info=None):
+def send_otp_email(to_email, otp, purpose="signup", device_info=None):
     """
-    Sends a beautifully formatted dark-mode HTML verification email via Gmail SMTP.
+    Sends a beautifully formatted dark-mode HTML verification email using the official Resend SDK.
+    Strictly uses the verified domain security@neurality.online and enforces secure logging.
     """
-    smtp_host = current_app.config.get("SMTP_HOST", "smtp.gmail.com")
-    smtp_port = int(current_app.config.get("SMTP_PORT", 587))
-    smtp_user = current_app.config.get("SMTP_USER", "mohitkarn123@gmail.com")
-    smtp_pass = current_app.config.get("SMTP_PASSWORD")
-    smtp_sender = current_app.config.get("SMTP_SENDER", "mohitkarn123@gmail.com")
+    resend.api_key = current_app.config.get("RESEND_API_KEY")
     enable_real_emails = current_app.config.get("ENABLE_REAL_EMAILS", True)
 
     if not enable_real_emails:
-        logger.info(f"[MOCK EMAIL] Not sending real email to {to_email}. OTP is {otp}")
+        logger.info(f"[MOCK EMAIL] Not sending real email to {to_email}.")
         return True
+
+    if not resend.api_key:
+        logger.error("RESEND_API_KEY is not configured.")
+        return False
 
     # Purpose clean display
     purpose_title = "Verify Your Account"
@@ -90,83 +89,18 @@ def send_smtp_email(to_email, otp, purpose="signup", device_info=None):
     </html>
     """
 
-    # Attempt Resend API first if configured
-    resend_api_key = current_app.config.get("RESEND_API_KEY")
-    if resend_api_key:
-        import urllib.request
-        import json
-        import urllib.error
-        try:
-            url = "https://api.resend.com/emails"
-            headers = {
-                "Authorization": f"Bearer {resend_api_key}",
-                "Content-Type": "application/json"
-            }
-            # Sandbox onboarding email must be onboarding@resend.dev unless a custom domain is verified
-            from_sender = smtp_sender
-            is_custom_verified = current_app.config.get("CUSTOM_DOMAIN_VERIFIED", False)
-            
-            # If domain is verified, ensure we send from @neurality.online rather than gmail fallback
-            if is_custom_verified:
-                if not from_sender or "@gmail.com" in from_sender or "mohitkarn123" in from_sender:
-                    from_sender = "Neurality <otp@neurality.online>"
-            else:
-                from_sender = "Neurality <onboarding@resend.dev>"
-
-            payload = {
-                "from": from_sender,
-                "to": [to_email],
-                "subject": f"[{purpose_title}] Your Neurality Code",
-                "html": html_content
-            }
-            
-            req = urllib.request.Request(
-                url, 
-                data=json.dumps(payload).encode("utf-8"), 
-                headers=headers, 
-                method="POST"
-            )
-            with urllib.request.urlopen(req, timeout=10) as response:
-                res_body = response.read().decode("utf-8")
-                logger.info(f"Successfully sent Resend API OTP email to {to_email}: {res_body}")
-                return True
-        except urllib.error.HTTPError as exc:
-            err_body = exc.read().decode("utf-8")
-            logger.error(f"Resend API HTTP Error {exc.code}: {err_body}")
-            print(f"--- RESEND API FAILURE: HTTP {exc.code} - {err_body} (OTP was {otp}) ---")
-        except Exception as exc:
-            logger.error(f"Failed to send Resend API email to {to_email}: {exc}", exc_info=True)
-            print(f"--- RESEND API FAILURE to {to_email}: {exc} (OTP was {otp}) ---")
-
-    # Fallback to standard SMTP (Gmail)
-    if not smtp_pass:
-        logger.error("SMTP_PASSWORD is not configured. Falling back to logging OTP.")
-        print(f"--- SMTP CONFIG ERROR: OTP for {to_email} is {otp} (No SMTP password set) ---")
-        return False
-
     try:
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = f"[{purpose_title}] Your Neurality Code"
-        msg["From"] = smtp_sender
-        msg["To"] = to_email
-
-        # Attach text and HTML versions
-        text_content = f"Your Neurality OTP code is: {otp}. Expiry: 5 minutes. Purpose: {purpose}."
-        msg.attach(MIMEText(text_content, "plain"))
-        msg.attach(MIMEText(html_content, "html"))
-
-        # Setup Secure Connection
-        server = smtplib.SMTP(smtp_host, smtp_port, timeout=10)
-        server.starttls()
-        server.login(smtp_user, smtp_pass)
-        server.sendmail(smtp_sender, to_email, msg.as_string())
-        server.quit()
-
-        logger.info(f"Successfully sent SMTP OTP email to {to_email}")
+        resend.Emails.send({
+            "from": "Neurality <security@neurality.online>",
+            "to": [to_email],
+            "subject": f"[{purpose_title}] Your Neurality Code",
+            "html": html_content
+        })
+        logger.info("OTP email sent successfully")
         return True
     except Exception as exc:
-        logger.error(f"Failed to send SMTP email to {to_email}: {exc}", exc_info=True)
-        # Never leak raw SMTP details to front-end, but log clearly for developers
-        print(f"--- SMTP SEND FAILURE to {to_email}: {exc} (OTP was {otp}) ---")
+        logger.error(f"Failed to send OTP email: {exc}", exc_info=True)
         return False
 
+# Backward compatibility alias
+send_smtp_email = send_otp_email

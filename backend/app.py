@@ -145,8 +145,10 @@ def create_app():
         return jsonify({"status": "ok", "message": "Neurality API active"})
 
     @app.get("/api/health")
+    @app.get("/health")
     def health_check():
         return jsonify({"status": "ok", "service": "Neurality API"})
+
 
     @app.errorhandler(RequestEntityTooLarge)
     def handle_large_file(_error):

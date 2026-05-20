@@ -91,7 +91,7 @@ def send_otp_email(to_email, otp, purpose="signup", device_info=None):
 
     try:
         resend.Emails.send({
-            "from": "Neurality <security@neurality.online>",
+            "from": "Neurality <c@neurality.online>",
             "to": [to_email],
             "subject": f"[{purpose_title}] Your Neurality Code",
             "html": html_content

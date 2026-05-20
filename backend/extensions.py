@@ -16,32 +16,40 @@ cors = CORS()
 
 REDIS_URL = os.environ.get("REDIS_URL")
 
+# ── Validate Redis is actually reachable before using it ──
+_redis_available = False
+if REDIS_URL:
+    try:
+        _test = redis.from_url(REDIS_URL, socket_connect_timeout=3)
+        _test.ping()
+        _redis_available = True
+        print(f"[Neurality] Redis connected: {REDIS_URL[:30]}...")
+    except Exception as e:
+        print(f"[Neurality] Redis unavailable ({e}), falling back to in-memory storage")
+        _redis_available = False
+
+# ── Rate Limiter (in-memory fallback if no Redis) ──
 limiter_kwargs = {
     "key_func": get_remote_address,
     "default_limits": ["200 per hour"]
 }
-if REDIS_URL:
+if _redis_available:
     limiter_kwargs["storage_uri"] = REDIS_URL
 
 limiter = Limiter(**limiter_kwargs)
 
-# ── Redis & Socket.IO Scaling ──
-REDIS_URL = os.environ.get("REDIS_URL")
-redis_client = redis.from_url(REDIS_URL) if REDIS_URL else None
+# ── Redis Client (None if unavailable) ──
+redis_client = redis.from_url(REDIS_URL) if _redis_available else None
 
-# Configure Socket.IO
-# Note: message_queue is NOT supported in "threading" mode.
-# We only enable it if a REDIS_URL is provided and we aren't explicitly forcing threading.
+# ── Socket.IO ──
 socket_kwargs = {
     "cors_allowed_origins": "*",
     "manage_session": False,
     "async_mode": "threading"
 }
 
-if REDIS_URL:
+if _redis_available:
     socket_kwargs["message_queue"] = REDIS_URL
-    # Note: message_queue is technically not supported in threading mode,
-    # but we'll keep it here for configuration symmetry if Redis is forced.
 
 socketio = SocketIO(**socket_kwargs)
 
@@ -49,9 +57,10 @@ socketio = SocketIO(**socket_kwargs)
 def make_celery(app_name):
     return Celery(
         app_name,
-        broker=REDIS_URL,
-        backend=REDIS_URL,
+        broker=REDIS_URL if _redis_available else "memory://",
+        backend=REDIS_URL if _redis_available else "cache+memory://",
         include=['tasks.media_tasks', 'tasks.notification_tasks']
     )
 
 celery = make_celery("neurality")
+

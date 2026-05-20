@@ -2,6 +2,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+import os
+
 from flask import Flask, jsonify, request
 from werkzeug.exceptions import RequestEntityTooLarge
 from cloudinary_config import *

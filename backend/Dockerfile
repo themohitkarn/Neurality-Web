@@ -10,7 +10,7 @@ RUN apt-get update && apt-get install -y \
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-RUN pip install gunicorn eventlet
+RUN pip install gunicorn
 
 COPY . .
 
@@ -19,4 +19,4 @@ RUN mkdir -p static/uploads/avatars static/uploads/posts static/uploads/stories 
 
 EXPOSE 5000
 
-CMD ["gunicorn", "--worker-class", "eventlet", "-w", "1", "--bind", "0.0.0.0:5000", "app:app"]
+CMD ["gunicorn", "--worker-class", "gthread", "--threads", "4", "-w", "1", "--bind", "0.0.0.0:5000", "app:app"]

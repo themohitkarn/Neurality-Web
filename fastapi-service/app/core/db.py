@@ -5,9 +5,17 @@ from app.config import settings
 
 logger = logging.getLogger("fastapi-app")
 
+# Normalize DATABASE_URL to always use the asyncpg driver
+_raw_url = settings.DATABASE_URL
+if _raw_url.startswith("postgres://"):
+    _raw_url = _raw_url.replace("postgres://", "postgresql+asyncpg://", 1)
+elif _raw_url.startswith("postgresql://"):
+    _raw_url = _raw_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+# If it already has +asyncpg, leave it as-is
+
 # Initialize async engine and sessionmaker
 engine = create_async_engine(
-    settings.DATABASE_URL,
+    _raw_url,
     echo=True if settings.ENVIRONMENT == "development" else False,
     future=True
 )

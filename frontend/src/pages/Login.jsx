@@ -29,6 +29,9 @@ export default function Login() {
     try {
       const res = await login({ identifier, password });
       if (res?.requires_verification) {
+        if (res.identifier) {
+          setIdentifier(res.identifier);
+        }
         setStep(2);
       } else {
         navigate(destination, { replace: true });

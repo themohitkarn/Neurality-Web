@@ -140,6 +140,10 @@ def create_app():
         except Exception as e:
             db.session.rollback()
 
+    @app.get("/")
+    def index():
+        return jsonify({"status": "ok", "message": "Neurality API active"})
+
     @app.get("/api/health")
     def health_check():
         return jsonify({"status": "ok", "service": "Neurality API"})
@@ -151,6 +155,9 @@ def create_app():
 
     @app.errorhandler(Exception)
     def handle_global_exception(exc):
+        from werkzeug.exceptions import HTTPException
+        if isinstance(exc, HTTPException):
+            return exc
         # Log the complete traceback on the server side
         app.logger.error("Unhandled internal exception: %s", str(exc), exc_info=True)
         # If in debug mode, raise it so standard debugger/terminal output is active

@@ -125,17 +125,27 @@ def login():
     if not identifier or not password:
         return jsonify({"message": "Email or username and password are required."}), 400
 
-    user = User.query.filter(
+    users = User.query.filter(
         or_(func.lower(User.email) == identifier.lower(), func.lower(User.username) == identifier.lower(), User.phone_number == identifier)
-    ).first()
+    ).all()
 
-    if not user:
+    if not users:
         return jsonify({"message": "Invalid credentials."}), 401
 
-    if not user.check_password(password):
-        user.failed_login_attempts += 1
+    matched_user = None
+    for u in users:
+        if u.check_password(password):
+            matched_user = u
+            break
+
+    if not matched_user:
+        # Increment failed login attempts for all matching accounts for security auditing
+        for u in users:
+            u.failed_login_attempts += 1
         db.session.commit()
         return jsonify({"message": "Invalid credentials."}), 401
+
+    user = matched_user
 
     client_ip = get_client_ip()
     user_agent = request.headers.get("User-Agent", "")
@@ -184,7 +194,7 @@ def login():
         return jsonify({
             "message": "New device detected. Please verify your login.",
             "requires_verification": True,
-            "identifier": identifier
+            "identifier": user.username
         }), 202
 
     user.last_ip = client_ip
@@ -223,8 +233,27 @@ def login_verify():
     if not identifier or not otp:
         return jsonify({"message": "Identifier and OTP are required."}), 400
 
-    verification = OtpVerification.query.filter_by(
-        identifier=identifier, purpose="new_device_login", is_verified=False
+    # 1. Uniquely resolve the user by username first, falling back to email or phone number
+    user = User.query.filter(func.lower(User.username) == identifier.lower()).first()
+    if not user:
+        user = User.query.filter(
+            or_(func.lower(User.email) == identifier.lower(), User.phone_number == identifier)
+        ).first()
+
+    if not user:
+        return jsonify({"message": "User not found."}), 404
+
+    # 2. Gather all active identifiers for this user to locate the pending OTP
+    allowed_identifiers = [user.username]
+    if user.email:
+        allowed_identifiers.append(user.email.lower())
+    if user.phone_number:
+        allowed_identifiers.append(user.phone_number)
+
+    verification = OtpVerification.query.filter(
+        OtpVerification.identifier.in_(allowed_identifiers),
+        OtpVerification.purpose == "new_device_login",
+        OtpVerification.is_verified == False
     ).order_by(OtpVerification.created_at.desc()).first()
 
     if not verification:
@@ -244,12 +273,6 @@ def login_verify():
         return jsonify({"message": f"Invalid verification code. {remaining} attempts remaining." if remaining > 0 else "Code locked due to too many failed attempts."}), 400
 
     verification.is_verified = True
-    user = User.query.filter(
-        or_(func.lower(User.email) == identifier.lower(), func.lower(User.username) == identifier.lower(), User.phone_number == identifier)
-    ).first()
-
-    if not user:
-        return jsonify({"message": "User not found."}), 404
 
     client_ip = get_client_ip()
     user_agent = request.headers.get("User-Agent", "")

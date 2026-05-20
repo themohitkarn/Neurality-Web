@@ -43,16 +43,15 @@ def create_app():
     bcrypt.init_app(app)
     limiter.init_app(app)
 
+    origins = os.getenv("CORS_ORIGINS", "").split(",")
+
     CORS(
         app,
         resources={
             r"/api/*": {
-                "origins": [
-                    "http://localhost:5173",
-                    "http://127.0.0.1:5173"
-                    ]
-                }
-            },
+                "origins": origins
+            }
+        },
         supports_credentials=True,
         allow_headers=["Content-Type", "Authorization", "X-Requested-With"]
     )
@@ -64,7 +63,10 @@ def create_app():
         
         if request.method == "OPTIONS":
             response = jsonify({"status": "ok"})
-            response.headers.add("Access-Control-Allow-Origin", "http://localhost:5173")
+            origin = request.headers.get("Origin")
+
+            if origin in origins:
+                response.headers.add("Access-Control-Allow-Origin", origin)
             response.headers.add("Access-Control-Allow-Headers", "Content-Type,Authorization,X-Requested-With")
             response.headers.add("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS")
             response.headers.add("Access-Control-Allow-Credentials", "true")

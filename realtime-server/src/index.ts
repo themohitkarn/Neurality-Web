@@ -155,7 +155,7 @@ app.post("/api/groups/create", restAuthMiddleware, upload.single("group_pic"), a
 
 app.get("/api/chat/dm/:targetUserId", restAuthMiddleware, async (req, res) => {
   const userId = (req as any).userId;
-  const targetUserId = parseInt(req.params.targetUserId);
+  const targetUserId = parseInt(req.params.targetUserId as string);
   
   if (isNaN(targetUserId)) return res.status(400).json({ message: "Invalid user ID" });
 
@@ -199,12 +199,14 @@ app.get("/api/chat/dm/:targetUserId", restAuthMiddleware, async (req, res) => {
           }
         },
         include: {
+          chat_settings: { where: { user_id: userId } },
           messages: {
             where: { is_deleted: false },
             include: { 
               sender: { select: { id: true, username: true, profile_pic: true } },
               reactions: { include: { user: { select: { id: true, username: true } } } },
               reads: true,
+              edits: { orderBy: { edited_at: 'desc' }, take: 1 },
               reply_to: { select: { id: true, content: true, sender_id: true, type: true, is_deleted: true } }
             },
             orderBy: { created_at: 'asc' }
@@ -214,7 +216,7 @@ app.get("/api/chat/dm/:targetUserId", restAuthMiddleware, async (req, res) => {
     }
 
     // Tag messages with is_mine for the requesting user
-    const messages = (conversation.messages || []).map(m => ({
+    const messages = (conversation!.messages || []).map((m: any) => ({
       ...m,
       is_mine: m.sender_id === userId,
       is_read: m.reads?.some((r: any) => r.user_id !== m.sender_id) || false
@@ -222,9 +224,9 @@ app.get("/api/chat/dm/:targetUserId", restAuthMiddleware, async (req, res) => {
 
     res.json({ 
       conversation: { 
-        id: conversation.id, 
-        type: conversation.type,
-        settings: conversation.chat_settings[0] || {}
+        id: conversation!.id, 
+        type: conversation!.type,
+        settings: (conversation as any).chat_settings?.[0] || {}
       }, 
       messages 
     });
@@ -235,7 +237,7 @@ app.get("/api/chat/dm/:targetUserId", restAuthMiddleware, async (req, res) => {
 });
 
 app.get("/api/messages/:conversationId", restAuthMiddleware, async (req, res) => {
-  const { conversationId } = req.params;
+  const conversationId = req.params.conversationId as string;
   const messages = await prisma.messages.findMany({
     where: { 
       conversation_id: conversationId, 
@@ -253,7 +255,7 @@ app.get("/api/messages/:conversationId", restAuthMiddleware, async (req, res) =>
 });
 
 app.get("/api/conversations/:conversationId/media", restAuthMiddleware, async (req, res) => {
-  const { conversationId } = req.params;
+  const conversationId = req.params.conversationId as string;
   try {
     const mediaMessages = await prisma.messages.findMany({
       where: {
@@ -276,7 +278,7 @@ app.get("/api/conversations/:conversationId/media", restAuthMiddleware, async (r
     const media = mediaMessages.map(m => {
       if (m.type.startsWith("shared_")) {
         try {
-          const data = JSON.parse(m.content);
+          const data = JSON.parse(m.content || "");
           return { ...m, url: data.thumbnail || data.video_path || data.image_path };
         } catch (e) { return { ...m, url: m.content }; }
       }

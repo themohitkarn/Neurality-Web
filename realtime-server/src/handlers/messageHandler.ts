@@ -79,7 +79,7 @@ export const registerMessageHandler = (io: Server, socket: AuthenticatedSocket) 
         }
       });
 
-      const activeSettings = conversation?.chat_settings[0];
+      const activeSettings = conversation?.chat_settings[0] as any;
       const ttl = activeSettings?.disappearing_timer || 0;
 
       if (conversation?.type === "direct") {

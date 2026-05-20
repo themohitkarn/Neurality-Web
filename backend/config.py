@@ -58,6 +58,7 @@ class Config:
     ENABLE_REAL_EMAILS = os.getenv("ENABLE_REAL_EMAILS", "true").lower() == "true"
     RESEND_API_KEY = os.getenv("RESEND_API_KEY")
     CUSTOM_DOMAIN_VERIFIED = os.getenv("CUSTOM_DOMAIN_VERIFIED", "false").lower() == "true"
+    RESEND_SENDER = os.getenv("RESEND_SENDER", "Neurality <noreply@neurality.online>")
 
     # ── Twilio SMS Config ──
     TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")

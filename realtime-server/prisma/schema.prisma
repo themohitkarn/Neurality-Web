@@ -104,6 +104,7 @@ model users {
   message_deletions         message_deletions[]
   linked_accounts           linked_accounts[]
   reelViews                 reel_views[]
+  hidden_contents           hidden_contents[]
 }
 
 model message_requests {
@@ -185,14 +186,15 @@ model posts {
   created_at   DateTime @default(now())
   updated_at   DateTime @updatedAt
 
-  user         users          @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  comments     comments[]
-  post_likes   post_likes[]
-  post_reposts post_reposts[]
-  saved_posts  saved_posts[]
-  pinned_posts pinned_posts[]
-  post_images  post_images[]
-  stories      stories[]
+  user            users             @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  comments        comments[]
+  post_likes      post_likes[]
+  post_reposts    post_reposts[]
+  saved_posts     saved_posts[]
+  pinned_posts    pinned_posts[]
+  post_images     post_images[]
+  stories         stories[]
+  hidden_contents hidden_contents[]
 }
 
 model post_images {
@@ -225,12 +227,13 @@ model reels {
   cloudinary_public_id String?  @db.VarChar(255)
   created_at           DateTime @default(now())
 
-  user         users          @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  reel_likes   reel_likes[]
-  reel_reposts reel_reposts[]
-  saved_posts  saved_posts[]
-  stories      stories[]
-  reel_views   reel_views[]
+  user            users             @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  reel_likes      reel_likes[]
+  reel_reposts    reel_reposts[]
+  saved_posts     saved_posts[]
+  stories         stories[]
+  reel_views      reel_views[]
+  hidden_contents hidden_contents[]
 }
 
 model reel_views {
@@ -705,6 +708,28 @@ model rtc_reconnect_logs {
   session rtc_sessions @relation(fields: [session_id], references: [id], onDelete: Cascade)
 }
 
+model server_logs {
+  id        String   @id @default(uuid())
+  level     String   @default("info")
+  message   String   @db.Text
+  context   Json?
+  timestamp DateTime @default(now())
+}
+
+model hidden_contents {
+  id         Int      @id @default(autoincrement())
+  user_id    Int
+  post_id    Int?
+  reel_id    Int?
+  created_at DateTime @default(now())
+
+  user users  @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  post posts? @relation(fields: [post_id], references: [id], onDelete: Cascade)
+  reel reels? @relation(fields: [reel_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, post_id, reel_id], name: "uq_hidden_content")
+}
+
 model rtc_ice_candidates {
   id             String   @id @default(uuid())
   participant_id String
@@ -857,14 +882,14 @@ model message_edits {
 }
 
 model ai_message_metadata {
-  message_id   String  @id
-  summary      String? @db.Text
+  message_id   String   @id
+  summary      String?  @db.Text
   sentiment    String?
-  is_automated Boolean @default(false)
+  is_automated Boolean  @default(false)
   confidence   Float?
   entities     Json?
   status       String?
-  moderation   String? @db.Text
+  moderation   String?  @db.Text
   suggestions  String[]
 
   message messages @relation(fields: [message_id], references: [id], onDelete: Cascade)
@@ -883,13 +908,13 @@ model message_deletions {
 }
 
 model notifications {
-  id          String   @id @default(uuid())
+  id          Int      @id @default(autoincrement())
   user_id     Int
   actor_id    Int?
   type        String // follow, like, comment, message, reaction
-  target_id   String?
+  target_id   Int?
   target_type String?
-  content     String?
+  body        String?  @db.Text
   is_read     Boolean  @default(false)
   created_at  DateTime @default(now())
 
@@ -912,7 +937,7 @@ model reports {
   id          Int       @id @default(autoincrement())
   reporter_id Int
   target_type String
-  target_id   String
+  target_id   Int
   reason      String
   description String?
   status      String    @default("pending")

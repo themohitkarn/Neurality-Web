@@ -128,7 +128,11 @@ export default function MessageBubble({
         {/* Status Indicators */}
         {isMe && showStatus && (
           <div className="flex items-center gap-1.5 mt-1 mr-1 justify-end opacity-60">
-            {message.is_optimistic ? (
+            {message.status === "failed" ? (
+              <span className="text-[9px] font-black uppercase tracking-[0.2em] flex items-center gap-1 text-red-500 cursor-pointer hover:underline" onClick={() => window.toast("Message will retry when online")}>
+                FAILED (TAP TO RETRY)
+              </span>
+            ) : message.status === "sending" || message.is_optimistic ? (
               <span className="text-[9px] font-black uppercase tracking-[0.2em] flex items-center gap-1">
                 <Loader2 size={10} className="animate-spin" /> SENDING
               </span>

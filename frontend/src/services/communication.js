@@ -7,7 +7,8 @@ class CommunicationService {
         this.userId = null;
         this.listeners = new Map();
         this.reconnectAttempts = 0;
-        this.maxReconnectAttempts = 10;
+        this.maxReconnectAttempts = Infinity;
+        this.messageQueue = []; // Offline queue
     }
 
     connect(token, userId) {
@@ -37,6 +38,7 @@ class CommunicationService {
             reconnectionAttempts: Infinity,
             reconnectionDelay: 1000,
             reconnectionDelayMax: 5000,
+            randomizationFactor: 0.5, // Jitter
             timeout: 20000,
             upgrade: true,
             rememberUpgrade: true,
@@ -51,6 +53,7 @@ class CommunicationService {
             console.log("[CommSDK] Connected to Realtime Engine");
             this.reconnectAttempts = 0;
             this.emit("call:recover");
+            this.flushQueue(); // Auto-retry offline messages
         });
 
         this.socket.on("disconnect", (reason) => {
@@ -96,6 +99,63 @@ class CommunicationService {
             return;
         }
         this.socket.emit(event, data);
+    }
+
+    // New ACK-based emit with timeout
+    emitWithAck(event, data, timeoutMs = 15000) {
+        return new Promise((resolve, reject) => {
+            if (!this.socket?.connected) {
+                reject(new Error("Socket disconnected"));
+                return;
+            }
+            
+            const timer = setTimeout(() => {
+                reject(new Error(`Timeout: No ACK received for ${event} after ${timeoutMs}ms`));
+            }, timeoutMs);
+
+            this.socket.emit(event, data, (response) => {
+                clearTimeout(timer);
+                if (response?.success) {
+                    resolve(response);
+                } else {
+                    reject(new Error(response?.error || "Request failed"));
+                }
+            });
+        });
+    }
+
+    // Internal flush
+    async flushQueue() {
+        if (this.messageQueue.length === 0 || !this.socket?.connected) return;
+        console.log(`[CommSDK] Flushing ${this.messageQueue.length} queued messages...`);
+        
+        const queueCopy = [...this.messageQueue];
+        this.messageQueue = [];
+
+        for (const item of queueCopy) {
+            try {
+                // Retry the emit and wait for ACK
+                const res = await this.emitWithAck("message:send", item.data);
+                if (item.onSuccess) item.onSuccess(res);
+            } catch (err) {
+                console.error("[CommSDK] Queue item failed to send:", err);
+                if (item.onFail) item.onFail(err);
+                // If it fails again, re-queue it if socket disconnected, else fail permanently
+                if (!this.socket?.connected) {
+                    this.messageQueue.push(item);
+                }
+            }
+        }
+    }
+
+    // Queue a message for offline sending
+    queueMessage(data, onSuccess, onFail) {
+        // Prevent duplicates (simple check based on client-side temp ID if provided in data)
+        const isDuplicate = this.messageQueue.some(m => m.data.tempId && m.data.tempId === data.tempId);
+        if (!isDuplicate) {
+            this.messageQueue.push({ data, onSuccess, onFail });
+            console.log(`[CommSDK] Message queued. Queue size: ${this.messageQueue.length}`);
+        }
     }
 
     // --- High Level Messaging API ---
@@ -146,6 +206,7 @@ class CommunicationService {
         }
         this.userId = null;
         this.listeners.clear();
+        this.messageQueue = [];
     }
 }
 

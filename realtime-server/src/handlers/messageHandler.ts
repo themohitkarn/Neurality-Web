@@ -39,147 +39,169 @@ export const registerMessageHandler = (io: Server, socket: AuthenticatedSocket) 
     replyToId?: string;
     isVanish?: boolean;
     expiresIn?: number;
-  }) => {
+  }, ack?: (response: any) => void) => {
     try {
-      let convId = data.conversationId;
+      console.log("[CommSDK] MESSAGE_RECEIVED", { userId, data });
 
-      // Handle direct message or group message without conversationId
-      if (!convId) {
-        if (data.receiverId) {
-          const isSelf = userId === data.receiverId;
-          const existing = await prisma.conversations.findFirst({
-            where: {
-              type: "direct",
-              AND: isSelf 
-                ? [ { members: { some: { user_id: userId } } }, { members: { none: { user_id: { not: userId } } } } ]
-                : [ { members: { some: { user_id: userId } } }, { members: { some: { user_id: data.receiverId } } } ]
-            }
-          });
-          
-          if (existing) {
-            convId = existing.id;
-          } else {
-            const created = await prisma.conversations.create({
-              data: {
+      // Wrap the database operation in a 10s timeout
+      const processMessage = async () => {
+        let convId = data.conversationId;
+
+        // Handle direct message or group message without conversationId
+        if (!convId) {
+          if (data.receiverId) {
+            const isSelf = userId === data.receiverId;
+            const existing = await prisma.conversations.findFirst({
+              where: {
                 type: "direct",
-                members: {
-                  create: isSelf ? [{ user_id: userId }] : [{ user_id: userId }, { user_id: data.receiverId }]
-                }
+                AND: isSelf 
+                  ? [ { members: { some: { user_id: userId } } }, { members: { none: { user_id: { not: userId } } } } ]
+                  : [ { members: { some: { user_id: userId } } }, { members: { some: { user_id: data.receiverId } } } ]
               }
             });
-            convId = created.id;
-          }
-        } else if (data.groupId) {
-          const groupConv = await prisma.conversations.findFirst({
-            where: {
-              id: data.groupId?.toString(),
-              type: "group"
+            
+            if (existing) {
+              convId = existing.id;
+            } else {
+              const created = await prisma.conversations.create({
+                data: {
+                  type: "direct",
+                  members: {
+                    create: isSelf ? [{ user_id: userId }] : [{ user_id: userId }, { user_id: data.receiverId }]
+                  }
+                }
+              });
+              convId = created.id;
             }
-          });
-          if (groupConv) convId = groupConv.id;
-        }
-      }
-
-      if (!convId) throw new Error("No conversation found");
-
-      // ── Block & Disappearing Logic ──
-      const conversation = await prisma.conversations.findUnique({
-        where: { id: convId },
-        include: { 
-          members: true,
-          chat_settings: { where: { user_id: userId } }
-        }
-      });
-
-      if (!conversation) {
-        socket.emit("error", { message: "Conversation not found." });
-        return;
-      }
-
-      // Verify that the user is actually a member of this conversation
-      const isMember = conversation.members.some(m => m.user_id === userId);
-      if (!isMember) {
-        socket.emit("error", { message: "Unauthorized: You are not a member of this conversation." });
-        return;
-      }
-
-      const activeSettings = conversation.chat_settings[0] as any;
-      const ttl = activeSettings?.disappearing_timer || 0;
-
-      if (conversation?.type === "direct") {
-        const otherMember = conversation.members.find(m => m.user_id !== userId);
-        if (otherMember) {
-          const isBlocked = await prisma.blocked_users.findFirst({
-            where: {
-              OR: [
-                { blocker_id: userId, blocked_id: otherMember.user_id },
-                { blocker_id: otherMember.user_id, blocked_id: userId }
-              ]
-            }
-          });
-          if (isBlocked) {
-            return socket.emit("error", { 
-              message: "Action restricted by privacy settings.",
-              code: "USER_BLOCKED" 
+          } else if (data.groupId) {
+            const groupConv = await prisma.conversations.findFirst({
+              where: {
+                id: data.groupId?.toString(),
+                type: "group"
+              }
             });
+            if (groupConv) convId = groupConv.id;
           }
         }
-      }
 
-      const message = await prisma.messages.create({
-        data: {
-          conversation_id: convId,
-          sender_id: userId,
-          content: data.content,
-          type: data.type || "text",
-          reply_to_id: data.replyToId,
-          is_vanish: ttl > 0,
-          expires_at: ttl > 0 ? new Date(Date.now() + ttl * 1000) : null
-        },
-        include: {
-          sender: { select: { id: true, username: true, profile_pic: true } },
-          reply_to: { select: { id: true, content: true, sender_id: true, type: true, is_deleted: true } }
-        }
-      });
+        if (!convId) throw new Error("No conversation found");
 
-      io.to(`conversation:${convId}`).emit("message:received", {
-        ...message,
-        is_mine: false
-      });
-
-      socket.emit("message:sent", { ...message, is_mine: true });
-
-      // Update conversation updated_at
-      await prisma.conversations.update({
-        where: { id: convId },
-        data: { updated_at: new Date() }
-      });
-
-      // Offload AI Processing
-      if (data.type === "text" || !data.type) {
-        await messageQueue.add("AI_PROCESS", { 
-          type: "AI_PROCESS", 
-          data: { messageId: message.id, content: data.content } 
+        // ── Block & Disappearing Logic ──
+        const conversation = await prisma.conversations.findUnique({
+          where: { id: convId },
+          include: { 
+            members: true,
+            chat_settings: { where: { user_id: userId } }
+          }
         });
-      }
 
-      // ── Push Notification logic ──
-      if (data.receiverId) {
-        const isOnline = await redis.get(`presence:${data.receiverId}`);
-        if (!isOnline || isOnline === "offline") {
-          const flaskUrl = process.env.FLASK_API_URL;
-          if (!flaskUrl) throw new Error("FLASK_API_URL is missing in environment variables");
-          axios.post(`${flaskUrl}/notifications/internal/send-push`, {
-            user_id: data.receiverId,
-            title: `New message from ${message.sender.username}`,
-            body: data.content,
-            type: "new_message"
-          }).catch(e => console.error("Push notify error:", e.message));
+        if (!conversation) {
+          throw new Error("Conversation not found.");
         }
+
+        // Verify that the user is actually a member of this conversation
+        const isMember = conversation.members.some(m => m.user_id === userId);
+        if (!isMember) {
+          throw new Error("Unauthorized: You are not a member of this conversation.");
+        }
+
+        const activeSettings = conversation.chat_settings[0] as any;
+        const ttl = activeSettings?.disappearing_timer || 0;
+
+        if (conversation?.type === "direct") {
+          const otherMember = conversation.members.find(m => m.user_id !== userId);
+          if (otherMember) {
+            const isBlocked = await prisma.blocked_users.findFirst({
+              where: {
+                OR: [
+                  { blocker_id: userId, blocked_id: otherMember.user_id },
+                  { blocker_id: otherMember.user_id, blocked_id: userId }
+                ]
+              }
+            });
+            if (isBlocked) {
+              throw new Error("Action restricted by privacy settings.");
+            }
+          }
+        }
+
+        const message = await prisma.messages.create({
+          data: {
+            conversation_id: convId,
+            sender_id: userId,
+            content: data.content,
+            type: data.type || "text",
+            reply_to_id: data.replyToId,
+            is_vanish: ttl > 0,
+            expires_at: ttl > 0 ? new Date(Date.now() + ttl * 1000) : null
+          },
+          include: {
+            sender: { select: { id: true, username: true, profile_pic: true } },
+            reply_to: { select: { id: true, content: true, sender_id: true, type: true, is_deleted: true } }
+          }
+        });
+
+        console.log("[CommSDK] MESSAGE_SAVED", { messageId: message.id });
+
+        io.to(`conversation:${convId}`).emit("message:received", {
+          ...message,
+          is_mine: false
+        });
+
+        socket.emit("message:sent", { ...message, is_mine: true });
+
+        // Update conversation updated_at
+        await prisma.conversations.update({
+          where: { id: convId },
+          data: { updated_at: new Date() }
+        });
+
+        // Offload AI Processing
+        if (data.type === "text" || !data.type) {
+          await messageQueue.add("AI_PROCESS", { 
+            type: "AI_PROCESS", 
+            data: { messageId: message.id, content: data.content } 
+          });
+        }
+
+        // ── Push Notification logic ──
+        if (data.receiverId) {
+          const isOnline = await redis.get(`presence:${data.receiverId}`);
+          if (!isOnline || isOnline === "offline") {
+            const flaskUrl = process.env.FLASK_API_URL;
+            if (flaskUrl) {
+              axios.post(`${flaskUrl}/notifications/internal/send-push`, {
+                user_id: data.receiverId,
+                title: `New message from ${message.sender.username}`,
+                body: data.content,
+                type: "new_message"
+              }).catch(e => console.error("Push notify error:", e.message));
+            }
+          }
+        }
+
+        return message;
+      };
+
+      // 10-second timeout promise
+      const timeout = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error("Timeout: Message processing took too long (10s)")), 10000);
+      });
+
+      const message = await Promise.race([processMessage(), timeout]);
+      
+      console.log("[CommSDK] MESSAGE_ACK_SENT", { success: true });
+      if (ack) {
+        ack({ success: true, message: { ...message, is_mine: true } });
       }
-    } catch (error) {
-      console.error("Send error:", error);
-      socket.emit("error", { message: "Failed to send message" });
+    } catch (error: any) {
+      console.error("[CommSDK] SOCKET_ERROR", error);
+      if (ack) {
+        ack({ success: false, error: error.message || "Failed to send message" });
+      } else {
+        // Fallback for older clients that don't pass an ack
+        socket.emit("error", { message: error.message || "Failed to send message" });
+      }
     }
   });
 

@@ -1,4 +1,5 @@
-const CACHE_NAME = "neurality-cache-v1";
+const CACHE_VERSION = "v2-" + new Date().getTime();
+const CACHE_NAME = `neurality-cache-${CACHE_VERSION}`;
 const OFFLINE_URL = "/index.html";
 
 const ASSETS_TO_CACHE = [
@@ -49,8 +50,21 @@ self.addEventListener("fetch", (event) => {
   event.respondWith(
     fetch(event.request)
       .then((response) => {
-        // Cache successful responses for static resources
+        // Validation for MIME type and successful response
         if (response.status === 200 && response.type === "basic") {
+          const contentType = response.headers.get("content-type");
+          
+          // CRITICAL: Reject caching HTML for JS/CSS requests (Vercel SPA fallback bug)
+          const isJsRequest = event.request.url.match(/\.js$/i);
+          const isCssRequest = event.request.url.match(/\.css$/i);
+          
+          if (isJsRequest && contentType && !contentType.includes("javascript")) {
+             return response; // Do not cache
+          }
+          if (isCssRequest && contentType && !contentType.includes("css")) {
+             return response; // Do not cache
+          }
+
           const responseToCache = response.clone();
           caches.open(CACHE_NAME).then((cache) => {
             cache.put(event.request, responseToCache);

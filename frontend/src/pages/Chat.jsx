@@ -24,7 +24,7 @@ import { motion, AnimatePresence } from "framer-motion";
 export default function Chat() {
   const { user } = useAuth();
   const { injectChatTheme } = useTheme();
-  const { socket, isConnected } = useSocket();
+  const { socket, isConnected, commService } = useSocket();
   const { initiateCall } = useCall();
   const { conversationId: urlConvId } = useParams();
   const navigate = useNavigate();
@@ -162,7 +162,7 @@ export default function Chat() {
     });
     socket.on("message:typing", (d) => { if (d.conversationId === conversationId) setTypingUserId(d.isTyping ? d.userId : null); });
     socket.on("ai:suggestions", (d) => { if (selectedContactRef.current && String(d.senderId) === String(selectedContactRef.current.id)) setSuggestions(d.suggestions || []); });
-    socket.on("error", (err) => { console.error("[Socket Error]", err); alert(err.message || "Something went wrong"); });
+    socket.on("error", (err) => { console.error("[Socket Error]", err); /* removed alert */ });
     socket.on("unread_update", refreshSidebar);
     socket.on("settings:sync", (data) => {
       if (data.conversationId === urlConvId) {
@@ -189,7 +189,7 @@ export default function Chat() {
   }, [socket, conversationId, refreshSidebar, navigate]);
 
   const handleSendMessage = async (content, type = "text", metadata = {}) => {
-    if (!socket || !isConnected || !content) return;
+    if (!socket || !content) return; // Don't block if !isConnected, we will queue it
 
     let finalContent = content;
     let finalType = type;
@@ -214,11 +214,13 @@ export default function Chat() {
         sender_id: user.id, 
         is_mine: true, 
         is_optimistic: true, 
+        status: "sending",
         reply_to: replyTo,
         type: finalType 
       }]);
 
-      socket.emit("message:send", {
+      const messageData = {
+        tempId,
         conversationId,
         content: finalContent,
         type: finalType,
@@ -226,9 +228,30 @@ export default function Chat() {
         groupId: selectedContact.is_group ? selectedContact.id : undefined,
         isVanish: isVanishMode,
         replyToId: replyTo?.id
-      });
+      };
+
+      const onSuccess = (res) => {
+        setMessages(prev => prev.map(m => m.id === tempId ? { ...m, ...res.message, status: "sent", is_optimistic: false } : m));
+      };
+
+      const onFail = (err) => {
+        setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: "failed" } : m));
+      };
 
       setReplyTo(null);
+
+      // ── Offline Queue / Network Dispatch ──
+      if (isConnected && commService) {
+         try {
+            const res = await commService.emitWithAck("message:send", messageData);
+            onSuccess(res);
+         } catch(e) {
+            onFail(e);
+         }
+      } else if (commService) {
+         commService.queueMessage(messageData, onSuccess, onFail);
+      }
+
     } catch (err) {
       console.error("Signal delivery failed:", err);
     }
@@ -335,7 +358,8 @@ export default function Chat() {
                 }}
                 onRestrict={() => {
                   socket.emit("user:restrict", { targetId: selectedContact.id });
-                  alert("User restricted. Their messages will now appear in Requests.");
+                  // Replace alert with console.log
+                  console.log("User restricted. Their messages will now appear in Requests.");
                 }}
                 onReport={() => {
                   const reason = window.prompt("Reason for report (harassment, spam, etc.):");
@@ -357,6 +381,15 @@ export default function Chat() {
                   onDetails={() => navigate(`/chat/${urlConvId}/details`)} 
                   onCall={(type) => initiateCall(selectedContact, type)} 
                 />
+                
+                {/* ── Offline Reconnecting Banner ── */}
+                {!isConnected && (
+                  <div className="bg-rose-500/10 text-rose-500 text-[11px] font-bold uppercase tracking-widest text-center py-2 border-b border-rose-500/20 flex items-center justify-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
+                    Reconnecting to Neural Network...
+                  </div>
+                )}
+
                 <MessageArea 
                   messages={messages} 
                   user={user} 

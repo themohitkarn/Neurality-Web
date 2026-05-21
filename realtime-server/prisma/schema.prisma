@@ -776,9 +776,9 @@ model secret_chat_sessions {
 model device_sessions {
   id              String        @id @default(uuid())
   user_id         Int
-  device_token    String        @unique
+  device_token    String?       @unique
   device_name     String?
-  device_type     String       
+  device_type     String?       
   os              String?
   is_trusted      Boolean       @default(false)
   biometric_verified Boolean    @default(false)

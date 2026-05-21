@@ -24,6 +24,7 @@ model users {
   
   // Flask & Communication Settings
   theme_preference          String    @default("system")
+  theme_metadata            String?   @db.Text
   is_private                Boolean   @default(false)
   account_type              String    @default("personal")
   allow_message_requests    Boolean   @default(true)

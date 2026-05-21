@@ -783,7 +783,12 @@ model device_sessions {
   os              String?
   is_trusted      Boolean       @default(false)
   biometric_verified Boolean    @default(false)
+  ip_address      String?
+  user_agent      String?
+  location        String?       @default("Unknown Location")
+  refresh_token   String?
   last_active     DateTime      @default(now())
+  created_at      DateTime      @default(now())
   revoked_at      DateTime?
 
   user            users         @relation(fields: [user_id], references: [id], onDelete: Cascade)

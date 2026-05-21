@@ -96,9 +96,19 @@ export default function Chat() {
       if (urlConvId && !selectedContact) {
         const match = mappedContacts.find(c => String(c.conversationId) === String(urlConvId));
         if (match) setSelectedContact(match);
+      } else if (!urlConvId && location.state?.selectUser) {
+        const passedUser = location.state.selectUser;
+        const existingConv = mappedContacts.find(c => !c.is_group && String(c.id) === String(passedUser.id));
+        if (existingConv) {
+          navigate(`/chat/${existingConv.conversationId}`, { replace: true });
+        } else {
+          setSelectedContact(passedUser);
+        }
+        // Clear state to prevent infinite loops on reload
+        window.history.replaceState({}, document.title);
       }
     } catch (err) { console.error(err); }
-  }, [user, urlConvId, selectedContact]);
+  }, [user, urlConvId, selectedContact, location.state, navigate]);
 
   const loadMessages = useCallback(async (contact) => {
     if (!contact) return;

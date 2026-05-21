@@ -150,15 +150,65 @@ const restAuthMiddleware = (req: express.Request, res: express.Response, next: e
 
 app.get("/api/conversations", restAuthMiddleware, async (req, res) => {
   const userId = (req as any).userId;
-  const convs = await prisma.conversations.findMany({
-    where: { members: { some: { user_id: userId } } },
-    include: { 
-      members: { include: { user: { select: { id: true, username: true, profile_pic: true } } } }, 
-      messages: { orderBy: { created_at: 'desc' }, take: 1 } 
-    },
-    orderBy: { updated_at: 'desc' }
-  });
-  res.json({ conversations: convs });
+  const startTime = Date.now();
+  
+  try {
+    console.log(`[REST] GET /api/conversations - User: ${userId}`);
+
+    const dbQuery = prisma.conversations.findMany({
+      where: { members: { some: { user_id: userId } } },
+      include: { 
+        members: { include: { user: { select: { id: true, username: true, profile_pic: true } } } }, 
+        messages: { orderBy: { created_at: 'desc' }, take: 1 } 
+      },
+      orderBy: { updated_at: 'desc' }
+    });
+
+    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("Database timeout")), 10000));
+    
+    // 10s Timeout protection
+    const rawConvs = (await Promise.race([dbQuery, timeout])) as any[];
+    
+    console.log(`[REST] DB Query took ${Date.now() - startTime}ms. Fetched ${rawConvs.length} convs.`);
+
+    // Defensive Serialization
+    const serializedConvs = rawConvs.map(conv => {
+      return {
+        id: conv.id || "",
+        type: conv.type || "direct",
+        name: conv.name || null,
+        description: conv.description || null,
+        avatar: conv.avatar || null,
+        created_at: conv.created_at ? new Date(conv.created_at).toISOString() : null,
+        updated_at: conv.updated_at ? new Date(conv.updated_at).toISOString() : null,
+        members: (conv.members || []).map((m: any) => ({
+          user_id: m.user_id,
+          role: m.role || "member",
+          user: m.user ? {
+            id: m.user.id,
+            username: m.user.username || "Unknown",
+            profile_pic: m.user.profile_pic || null
+          } : null
+        })).filter((m: any) => m.user_id),
+        messages: (conv.messages || []).map((msg: any) => ({
+          id: msg.id,
+          content: msg.content || "",
+          type: msg.type || "text",
+          sender_id: msg.sender_id,
+          created_at: msg.created_at ? new Date(msg.created_at).toISOString() : null
+        }))
+      };
+    });
+
+    const payloadStr = JSON.stringify(serializedConvs);
+    const payloadSize = Buffer.byteLength(payloadStr, 'utf8');
+    console.log(`[REST] Serialization successful. Payload size: ${(payloadSize / 1024).toFixed(2)} KB`);
+
+    res.status(200).json({ success: true, conversations: serializedConvs });
+  } catch (error: any) {
+    console.error(`[REST] GET /api/conversations ERROR:`, error.message || "Unknown error");
+    res.status(500).json({ success: false, message: "Failed to load conversations" });
+  }
 });
 
 app.post("/api/groups/create", restAuthMiddleware, upload.single("group_pic"), async (req, res) => {

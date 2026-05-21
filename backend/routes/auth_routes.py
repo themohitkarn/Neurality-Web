@@ -106,7 +106,7 @@ def signup():
             httponly=True,
             secure=True,
             samesite="None",
-            max_age=7 * 24 * 60 * 60  # 7 days
+            max_age=365 * 24 * 60 * 60  # 1 year (365 days)
         )
     return response, 201
 
@@ -224,7 +224,7 @@ def login():
             httponly=True,
             secure=True,
             samesite="None",
-            max_age=7 * 24 * 60 * 60  # 7 days
+            max_age=365 * 24 * 60 * 60  # 1 year (365 days)
         )
     return response
 
@@ -322,7 +322,7 @@ def login_verify():
             httponly=True,
             secure=True,
             samesite="None",
-            max_age=7 * 24 * 60 * 60  # 7 days
+            max_age=365 * 24 * 60 * 60  # 1 year (365 days)
         )
     return response
 
@@ -631,7 +631,7 @@ def refresh_token():
         httponly=True,
         secure=True,
         samesite="None",
-        max_age=7 * 24 * 60 * 60  # 7 days
+        max_age=365 * 24 * 60 * 60  # 1 year (365 days)
     )
     return response
 

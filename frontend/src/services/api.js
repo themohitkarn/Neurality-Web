@@ -131,6 +131,7 @@ const setupResponseInterceptor = (instance) => {
           processQueue(refreshError, null);
           // If refresh fails, session is completely invalid. Clear tokens.
           localStorage.removeItem(TOKEN_STORAGE_KEY);
+          window.location.href = "/login";
           return Promise.reject(refreshError);
         } finally {
           isRefreshing = false;

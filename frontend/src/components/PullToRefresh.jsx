@@ -2,7 +2,7 @@ import { useRef, useState, useCallback } from "react";
 import { RefreshCcw } from "lucide-react";
 
 
-export default function PullToRefresh({ onRefresh, children }) {
+export default function PullToRefresh({ onRefresh, children, className }) {
   const containerRef = useRef(null);
   const [pulling, setPulling] = useState(false);
   const [pullDistance, setPullDistance] = useState(0);
@@ -43,7 +43,7 @@ export default function PullToRefresh({ onRefresh, children }) {
   return (
     <div
       ref={containerRef}
-      className="relative h-full overflow-y-auto overscroll-contain"
+      className={`relative h-full overflow-y-auto overscroll-contain ${className || ""}`}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}

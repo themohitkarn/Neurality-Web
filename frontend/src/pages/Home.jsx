@@ -169,9 +169,8 @@ export default function Home() {
   };
 
   return (
-    <div className="h-full w-full overflow-y-auto overflow-x-hidden box-border bg-[color:var(--bg)] custom-scrollbar">
-      <PullToRefresh onRefresh={refreshAll}>
-        <div className="w-full max-w-[850px] mx-auto flex justify-center lg:justify-between pt-0 lg:pt-8 px-0 lg:px-4 xl:max-w-[950px] xl:gap-8">
+    <PullToRefresh onRefresh={refreshAll} className="h-full w-full overflow-x-hidden box-border bg-[color:var(--bg)] custom-scrollbar">
+      <div className="w-full max-w-[850px] mx-auto flex justify-center lg:justify-between pt-0 lg:pt-8 px-0 lg:px-4 xl:max-w-[950px] xl:gap-8">
           {/* Feed Column */}
           <div className="w-full max-w-[470px] flex-shrink-0 flex flex-col">
             {/* Stories */}

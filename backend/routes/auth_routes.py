@@ -62,30 +62,35 @@ def signup():
         user = User(username=username, email=email, bio=bio or None, profile_pic=profile_pic_path)
         user.set_password(password)
         db.session.add(user)
+        db.session.flush()
+
+        client_ip = get_client_ip()
+        user_agent = request.headers.get("User-Agent", "")
+        device_name = parse_device_name(user_agent)
+        location = get_device_location(client_ip)
+
+        session = DeviceSession(
+            user_id=user.id,
+            ip_address=client_ip,
+            user_agent=user_agent,
+            device_name=device_name,
+            location=location
+        )
+        db.session.add(session)
+        db.session.flush()
+
+        access_token = generate_access_token(user.id, session_id=session.id)
+        refresh_token = generate_refresh_token_in_db(user.id, session_id=session.id)
+
         db.session.commit()
     except Exception as exc:
         db.session.rollback()
         if profile_pic_path:
-            delete_image(profile_pic_path)
-        return jsonify({"message": f"Unable to create user: {exc}"}), 500
-
-    client_ip = get_client_ip()
-    user_agent = request.headers.get("User-Agent", "")
-    device_name = parse_device_name(user_agent)
-    location = get_device_location(client_ip)
-
-    session = DeviceSession(
-        user_id=user.id,
-        ip_address=client_ip,
-        user_agent=user_agent,
-        device_name=device_name,
-        location=location
-    )
-    db.session.add(session)
-    db.session.commit()
-
-    access_token = generate_access_token(user.id, session_id=session.id)
-    refresh_token = generate_refresh_token_in_db(user.id, session_id=session.id)
+            try:
+                delete_image(profile_pic_path)
+            except Exception:
+                pass
+        return jsonify({"message": "Unable to create user. Please try again."}), 500
 
     response = jsonify(
         {
@@ -636,7 +641,8 @@ def logout():
     old_token = request.cookies.get("refresh_token")
     if old_token:
         from models.device_session import DeviceSession
-        session = DeviceSession.query.filter_by(refresh_token=old_token).first()
+        from utils.jwt_helper import hash_token
+        session = DeviceSession.query.filter_by(refresh_token=hash_token(old_token)).first()
         if session:
             db.session.delete(session)
             db.session.commit()

@@ -32,6 +32,7 @@ const CORS_ORIGIN = process.env.CORS_ORIGIN;
 if (!CORS_ORIGIN) {
   throw new Error("CORS_ORIGIN is missing in environment variables");
 }
+const allowedOrigins = CORS_ORIGIN.split(',').map(o => o.trim());
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
@@ -39,9 +40,22 @@ if (!JWT_SECRET) {
 }
 
 app.use(cors({
-  origin: CORS_ORIGIN,
+  origin: function(origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
   credentials: true
 }));
+
+app.get("/health", (req, res) => {
+  res.status(200).json({
+    status: "ok",
+    service: "realtime"
+  });
+});
 app.use(express.json());
 
 // --- FILE UPLOAD SETUP ---
@@ -59,7 +73,7 @@ const upload = multer({ storage });
 
 const io = new Server(httpServer, {
   cors: {
-    origin: CORS_ORIGIN,
+    origin: allowedOrigins,
     methods: ["GET", "POST"],
     credentials: true,
   },

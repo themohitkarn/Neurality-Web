@@ -145,8 +145,24 @@ const setupResponseInterceptor = (instance) => {
 setupResponseInterceptor(api);
 setupResponseInterceptor(realtimeApi);
 
-export const getErrorMessage = (error) =>
-  error?.response?.data?.message || "Something went wrong. Please try again.";
+export const getErrorMessage = (error) => {
+  const msg = error?.response?.data?.message;
+  if (!msg) return "Something went wrong. Please try again.";
+  
+  // Sanitize internal trace leakages
+  const lowerMsg = msg.toLowerCase();
+  if (
+    lowerMsg.includes("sqlalchemy") ||
+    lowerMsg.includes("traceback") ||
+    lowerMsg.includes("internal server error") ||
+    lowerMsg.includes("psycopg2") ||
+    lowerMsg.includes("werkzeug")
+  ) {
+    return "Something went wrong. Please try again later.";
+  }
+  
+  return msg;
+};
 
 export const authApi = {
   checkIdentity: (payload) => api.post("/auth/check-identity", payload),

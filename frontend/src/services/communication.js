@@ -34,7 +34,7 @@ class CommunicationService {
             auth: { token },
             transports: ["websocket", "polling"],
             reconnection: true,
-            reconnectionAttempts: this.maxReconnectAttempts,
+            reconnectionAttempts: Infinity,
             reconnectionDelay: 1000,
             reconnectionDelayMax: 5000,
             timeout: 20000,

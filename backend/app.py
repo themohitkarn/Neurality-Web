@@ -78,6 +78,7 @@ def create_app():
         response.headers['X-Frame-Options'] = 'DENY'
         response.headers['X-Content-Type-Options'] = 'nosniff'
         response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+        response.headers['Content-Security-Policy'] = "default-src 'self'"
         if request.path.startswith('/api/'):
             response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
         return response
@@ -140,9 +141,9 @@ def create_app():
         except Exception as e:
             db.session.rollback()
 
-    @app.get("/")
-    def index():
-        return jsonify({"status": "ok", "message": "Neurality API active"})
+    @app.route("/")
+    def root():
+        return {"status": "ok", "service": "Neurality API"}, 200
 
     @app.get("/api/health")
     @app.get("/health")

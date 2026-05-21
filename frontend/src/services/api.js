@@ -1,4 +1,5 @@
 import axios from "axios";
+import commService from "./communication";
 
 
 export const TOKEN_STORAGE_KEY = "neurality_token";
@@ -122,6 +123,7 @@ const setupResponseInterceptor = (instance) => {
           // Update common authorization header
           api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
           realtimeApi.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+          commService.updateToken(token);
 
           processQueue(null, token);
 

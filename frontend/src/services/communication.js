@@ -1,6 +1,8 @@
 import { io } from "socket.io-client";
 import { REALTIME_BASE_URL } from "./api";
 
+const QUEUE_KEY = "neurality_offline_queue";
+
 class CommunicationService {
     constructor() {
         this.socket = null;
@@ -8,7 +10,12 @@ class CommunicationService {
         this.listeners = new Map();
         this.reconnectAttempts = 0;
         this.maxReconnectAttempts = Infinity;
-        this.messageQueue = []; // Offline queue
+        
+        try {
+            this.messageQueue = JSON.parse(localStorage.getItem(QUEUE_KEY) || "[]");
+        } catch(e) {
+            this.messageQueue = [];
+        }
     }
 
     connect(token, userId) {
@@ -46,6 +53,12 @@ class CommunicationService {
 
         this.setupDefaultListeners();
         this.reapplyListeners();
+    }
+
+    updateToken(newToken) {
+        if (this.socket) {
+            this.socket.auth.token = newToken;
+        }
     }
 
     setupDefaultListeners() {
@@ -131,6 +144,7 @@ class CommunicationService {
         
         const queueCopy = [...this.messageQueue];
         this.messageQueue = [];
+        localStorage.removeItem(QUEUE_KEY);
 
         for (const item of queueCopy) {
             try {
@@ -143,6 +157,7 @@ class CommunicationService {
                 // If it fails again, re-queue it if socket disconnected, else fail permanently
                 if (!this.socket?.connected) {
                     this.messageQueue.push(item);
+                    localStorage.setItem(QUEUE_KEY, JSON.stringify(this.messageQueue.map(m => ({ data: m.data }))));
                 }
             }
         }
@@ -154,6 +169,8 @@ class CommunicationService {
         const isDuplicate = this.messageQueue.some(m => m.data.tempId && m.data.tempId === data.tempId);
         if (!isDuplicate) {
             this.messageQueue.push({ data, onSuccess, onFail });
+            // Don't serialize functions
+            localStorage.setItem(QUEUE_KEY, JSON.stringify(this.messageQueue.map(m => ({ data: m.data }))));
             console.log(`[CommSDK] Message queued. Queue size: ${this.messageQueue.length}`);
         }
     }

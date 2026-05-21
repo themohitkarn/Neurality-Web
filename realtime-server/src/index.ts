@@ -56,6 +56,20 @@ app.get("/health", (req, res) => {
     service: "realtime"
   });
 });
+
+app.get("/metrics", async (req, res) => {
+  try {
+    const sockets = await io.fetchSockets();
+    res.status(200).json({
+      connections: sockets.length,
+      memoryUsage: process.memoryUsage(),
+      uptime: process.uptime()
+    });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch metrics" });
+  }
+});
+
 app.use(express.json());
 
 // --- FILE UPLOAD SETUP ---
@@ -94,8 +108,13 @@ subClient.subscribe("realtime:internal", (err) => {
 
 subClient.on("message", (channel, message) => {
   if (channel === "realtime:internal") {
-    const data = JSON.parse(message);
-    io.to(data.room).emit(data.event, data.payload);
+    try {
+      const data = JSON.parse(message);
+      console.log(`[Redis] ACK: Internal message received for room ${data.room}`);
+      io.to(data.room).emit(data.event, data.payload);
+    } catch (e) {
+      console.error("[Redis] Failed to parse internal message", e);
+    }
   }
 });
 

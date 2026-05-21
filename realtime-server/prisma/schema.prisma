@@ -499,6 +499,7 @@ model messages {
   message_type    String                @default("text")
   reply_to_id     String?
   thread_id       String?             
+  client_message_id String?             @unique
   is_vanish       Boolean               @default(false)
   is_edited       Boolean               @default(false)
   is_forwarded    Boolean               @default(false)

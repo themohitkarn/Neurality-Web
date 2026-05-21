@@ -39,6 +39,7 @@ export const registerMessageHandler = (io: Server, socket: AuthenticatedSocket) 
     replyToId?: string;
     isVanish?: boolean;
     expiresIn?: number;
+    tempId?: string;
   }, ack?: (response: any) => void) => {
     try {
       console.log("[CommSDK] MESSAGE_RECEIVED", { userId, data });
@@ -125,21 +126,40 @@ export const registerMessageHandler = (io: Server, socket: AuthenticatedSocket) 
           }
         }
 
-        const message = await prisma.messages.create({
-          data: {
-            conversation_id: convId,
-            sender_id: userId,
-            content: data.content,
-            type: data.type || "text",
-            reply_to_id: data.replyToId,
-            is_vanish: ttl > 0,
-            expires_at: ttl > 0 ? new Date(Date.now() + ttl * 1000) : null
-          },
-          include: {
-            sender: { select: { id: true, username: true, profile_pic: true } },
-            reply_to: { select: { id: true, content: true, sender_id: true, type: true, is_deleted: true } }
+        let message;
+        try {
+          message = await prisma.messages.create({
+            data: {
+              conversation_id: convId,
+              sender_id: userId,
+              content: data.content,
+              type: data.type || "text",
+              reply_to_id: data.replyToId,
+              client_message_id: data.tempId,
+              is_vanish: ttl > 0,
+              expires_at: ttl > 0 ? new Date(Date.now() + ttl * 1000) : null
+            },
+            include: {
+              sender: { select: { id: true, username: true, profile_pic: true } },
+              reply_to: { select: { id: true, content: true, sender_id: true, type: true, is_deleted: true } }
+            }
+          });
+        } catch (err: any) {
+          if (err.code === 'P2002' && data.tempId) {
+            message = await prisma.messages.findUnique({
+              where: { client_message_id: data.tempId },
+              include: {
+                sender: { select: { id: true, username: true, profile_pic: true } },
+                reply_to: { select: { id: true, content: true, sender_id: true, type: true, is_deleted: true } }
+              }
+            });
+            if (!message) throw new Error("Failed to resolve duplicate message");
+            console.log("[CommSDK] DUPLICATE_MESSAGE_RECOVERED", { messageId: message.id });
+            return message; // Duplicate: skip re-broadcasting
+          } else {
+            throw err;
           }
-        });
+        }
 
         console.log("[CommSDK] MESSAGE_SAVED", { messageId: message.id });
 
@@ -188,7 +208,7 @@ export const registerMessageHandler = (io: Server, socket: AuthenticatedSocket) 
         setTimeout(() => reject(new Error("Timeout: Message processing took too long (10s)")), 10000);
       });
 
-      const message = await Promise.race([processMessage(), timeout]);
+      const message = (await Promise.race([processMessage(), timeout])) as any;
       
       console.log("[CommSDK] MESSAGE_ACK_SENT", { success: true });
       if (ack) {

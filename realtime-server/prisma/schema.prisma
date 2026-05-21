@@ -1,4 +1,3 @@
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -7,21 +6,19 @@ datasource db {
   provider = "postgresql"
 }
 
-
-
 model users {
-  id                        Int       @id @default(autoincrement())
-  username                  String    @unique
-  email                     String?   @unique
-  phone_number              String?   @unique
-  password_hash             String
-  setup_step                Int       @default(1)
-  full_name                 String?
-  bio                       String?
-  website                   String?
-  location                  String?
-  profile_pic               String?
-  
+  id            Int     @id @default(autoincrement())
+  username      String  @unique
+  email         String? @unique
+  phone_number  String? @unique
+  password_hash String
+  setup_step    Int     @default(1)
+  full_name     String?
+  bio           String?
+  website       String?
+  location      String?
+  profile_pic   String?
+
   // Flask & Communication Settings
   theme_preference          String    @default("system")
   theme_metadata            String?   @db.Text
@@ -46,69 +43,68 @@ model users {
   created_at                DateTime  @default(now())
 
   // Security & Presence (Merged)
-  two_factor_enabled        Boolean   @default(false)
-  last_login                DateTime?
-  last_ip                   String?
-  failed_login_attempts     Int       @default(0)
-  presence_status           String    @default("offline") // online, away, dnd, offline
-  custom_status             String?
-  status_emoji              String?
+  two_factor_enabled    Boolean   @default(false)
+  last_login            DateTime?
+  last_ip               String?
+  failed_login_attempts Int       @default(0)
+  presence_status       String    @default("offline") // online, away, dnd, offline
+  custom_status         String?
+  status_emoji          String?
 
   // Relations
-  blocked_by                blocked_users[] @relation("blocked_id_to_users")
-  blockers                  blocked_users[] @relation("blocker_id_to_users")
-  followers                 followers[]     @relation("followed_id_to_users")
-  following                 followers[]     @relation("follower_id_to_users")
-  follow_requests_received  follow_requests[] @relation("follow_receiver_id_to_users")
-  follow_requests_sent      follow_requests[] @relation("follow_sender_id_to_users")
-  close_friends             close_friends[] @relation("close_friends_user")
-  close_friends_of          close_friends[] @relation("close_friends_target")
+  blocked_by               blocked_users[]   @relation("blocked_id_to_users")
+  blockers                 blocked_users[]   @relation("blocker_id_to_users")
+  followers                followers[]       @relation("followed_id_to_users")
+  following                followers[]       @relation("follower_id_to_users")
+  follow_requests_received follow_requests[] @relation("follow_receiver_id_to_users")
+  follow_requests_sent     follow_requests[] @relation("follow_sender_id_to_users")
+  close_friends            close_friends[]   @relation("close_friends_user")
+  close_friends_of         close_friends[]   @relation("close_friends_target")
 
-  posts                     posts[]
-  reels                     reels[]
-  stories                   stories[]
-  comments                  comments[]
-  post_likes                post_likes[]
-  post_reposts              post_reposts[]
-  reel_likes                reel_likes[]
-  reel_reposts              reel_reposts[]
-  saved_posts               saved_posts[]
-  pinned_posts              pinned_posts[]
-  story_highlights          story_highlights[]
-  story_reactions           story_reactions[]
-  story_seen                story_seen[]
-  reports_made              reports[]       @relation("reports_reporter")
-  reports_reviewed          reports[]       @relation("reports_reviewer")
-  messages                  messages[]
-  scheduled_messages        scheduled_messages[]
+  posts              posts[]
+  reels              reels[]
+  stories            stories[]
+  comments           comments[]
+  post_likes         post_likes[]
+  post_reposts       post_reposts[]
+  reel_likes         reel_likes[]
+  reel_reposts       reel_reposts[]
+  saved_posts        saved_posts[]
+  pinned_posts       pinned_posts[]
+  story_highlights   story_highlights[]
+  story_reactions    story_reactions[]
+  story_seen         story_seen[]
+  reports_made       reports[]            @relation("reports_reporter")
+  reports_reviewed   reports[]            @relation("reports_reviewer")
+  messages           messages[]
+  scheduled_messages scheduled_messages[]
 
-  conversation_members      conversation_members[]
-  message_reactions         message_reactions[]
-  message_reads             message_reads[]
-  notifications             notifications[] @relation("notif_user")
-  notif_actions             notifications[] @relation("notif_actor")
-  chat_settings             chat_settings[] @relation("chat_user")
-  chat_settings_target      chat_settings[] @relation("chat_target")
+  conversation_members conversation_members[]
+  message_reactions    message_reactions[]
+  message_reads        message_reads[]
+  notifications        notifications[]        @relation("notif_user")
+  notif_actions        notifications[]        @relation("notif_actor")
+  chat_settings        chat_settings[]        @relation("chat_user")
+  chat_settings_target chat_settings[]        @relation("chat_target")
 
-  device_sessions           device_sessions[]
-  presence_sessions         presence_sessions[]
-  activity_sessions         activity_sessions[]
-  poll_votes                poll_votes[]
-  message_bookmarks         message_bookmarks[]
-  group_audit_logs          group_audit_logs[]
-  group_invites_sent        group_invites[] @relation("invite_sender")
-  group_invites_received    group_invites[] @relation("invite_target")
-  group_requests            group_join_requests[]
-  rtc_sessions              rtc_participants[]
-  created_groups            groups[]           @relation("GroupCreator")
+  device_sessions        device_sessions[]
+  presence_sessions      presence_sessions[]
+  activity_sessions      activity_sessions[]
+  poll_votes             poll_votes[]
+  message_bookmarks      message_bookmarks[]
+  group_audit_logs       group_audit_logs[]
+  group_invites_sent     group_invites[]       @relation("invite_sender")
+  group_invites_received group_invites[]       @relation("invite_target")
+  group_requests         group_join_requests[]
+  rtc_sessions           rtc_participants[]
+  created_groups         groups[]              @relation("GroupCreator")
 
-  sent_message_requests     message_requests[] @relation("sent_requests")
-  received_message_requests message_requests[] @relation("received_requests")
+  sent_message_requests     message_requests[]  @relation("sent_requests")
+  received_message_requests message_requests[]  @relation("received_requests")
   message_deletions         message_deletions[]
   linked_accounts           linked_accounts[]
+  reelViews                 reel_views[]
 }
-
-
 
 model message_requests {
   id           Int       @id @default(autoincrement())
@@ -118,20 +114,20 @@ model message_requests {
   created_at   DateTime  @default(now())
   responded_at DateTime?
 
-  sender       users     @relation("sent_requests", fields: [sender_id], references: [id], onDelete: Cascade)
-  receiver     users     @relation("received_requests", fields: [receiver_id], references: [id], onDelete: Cascade)
+  sender   users @relation("sent_requests", fields: [sender_id], references: [id], onDelete: Cascade)
+  receiver users @relation("received_requests", fields: [receiver_id], references: [id], onDelete: Cascade)
 
   @@unique([sender_id, receiver_id])
 }
 
 model blocked_users {
-  id          Int      @id @default(autoincrement())
-  blocker_id  Int
-  blocked_id  Int
-  created_at  DateTime @default(now())
+  id         Int      @id @default(autoincrement())
+  blocker_id Int
+  blocked_id Int
+  created_at DateTime @default(now())
 
-  blocker     users    @relation("blocker_id_to_users", fields: [blocker_id], references: [id], onDelete: Cascade)
-  blocked     users    @relation("blocked_id_to_users", fields: [blocked_id], references: [id], onDelete: Cascade)
+  blocker users @relation("blocker_id_to_users", fields: [blocker_id], references: [id], onDelete: Cascade)
+  blocked users @relation("blocked_id_to_users", fields: [blocked_id], references: [id], onDelete: Cascade)
 
   @@unique([blocker_id, blocked_id])
 }
@@ -141,8 +137,8 @@ model followers {
   followed_id Int
   created_at  DateTime @default(now())
 
-  follower    users    @relation("follower_id_to_users", fields: [follower_id], references: [id], onDelete: Cascade)
-  followed    users    @relation("followed_id_to_users", fields: [followed_id], references: [id], onDelete: Cascade)
+  follower users @relation("follower_id_to_users", fields: [follower_id], references: [id], onDelete: Cascade)
+  followed users @relation("followed_id_to_users", fields: [followed_id], references: [id], onDelete: Cascade)
 
   @@id([follower_id, followed_id])
 }
@@ -155,8 +151,8 @@ model follow_requests {
   created_at   DateTime  @default(now())
   responded_at DateTime?
 
-  sender       users     @relation("follow_sender_id_to_users", fields: [sender_id], references: [id], onDelete: Cascade)
-  receiver     users     @relation("follow_receiver_id_to_users", fields: [receiver_id], references: [id], onDelete: Cascade)
+  sender   users @relation("follow_sender_id_to_users", fields: [sender_id], references: [id], onDelete: Cascade)
+  receiver users @relation("follow_receiver_id_to_users", fields: [receiver_id], references: [id], onDelete: Cascade)
 
   @@unique([sender_id, receiver_id])
 }
@@ -167,29 +163,27 @@ model close_friends {
   friend_id  Int
   created_at DateTime @default(now())
 
-  user       users    @relation("close_friends_user", fields: [user_id], references: [id], onDelete: Cascade)
-  friend     users    @relation("close_friends_target", fields: [friend_id], references: [id], onDelete: Cascade)
+  user   users @relation("close_friends_user", fields: [user_id], references: [id], onDelete: Cascade)
+  friend users @relation("close_friends_target", fields: [friend_id], references: [id], onDelete: Cascade)
 
   @@unique([user_id, friend_id])
 }
 
-
-
 model posts {
-  id           Int            @id @default(autoincrement())
+  id           Int      @id @default(autoincrement())
   user_id      Int
   image_path   String?
-  caption      String?        @db.Text
+  caption      String?  @db.Text
   location     String?
-  media_type   String         @default("image")
-  is_muted     Boolean        @default(false)
+  media_type   String   @default("image")
+  is_muted     Boolean  @default(false)
   audio_path   String?
   width        Int?
   height       Int?
   aspect_ratio String?
   orientation  String?
-  created_at   DateTime       @default(now())
-  updated_at   DateTime       @updatedAt
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
 
   user         users          @relation(fields: [user_id], references: [id], onDelete: Cascade)
   comments     comments[]
@@ -210,49 +204,69 @@ model post_images {
   height     Int?
   position   Int     @default(0)
 
-  post       posts   @relation(fields: [post_id], references: [id], onDelete: Cascade)
+  post posts @relation(fields: [post_id], references: [id], onDelete: Cascade)
 }
 
 model reels {
-  id             Int            @id @default(autoincrement())
-  user_id        Int
-  video_path     String
-  thumbnail_path String
-  width          Int?
-  height         Int?
-  aspect_ratio   String         @default("9:16")
-  orientation    String         @default("portrait")
-  is_muted       Boolean        @default(false)
-  caption        String?        @db.Text
-  created_at     DateTime       @default(now())
+  id                   Int      @id @default(autoincrement())
+  user_id              Int
+  video_path           String
+  thumbnail_path       String
+  width                Int?
+  height               Int?
+  aspect_ratio         String   @default("9:16")
+  orientation          String   @default("portrait")
+  is_muted             Boolean  @default(false)
+  caption              String?  @db.Text
+  views_count          Int      @default(0)
+  saves_count          Int      @default(0)
+  duration             Float?   @default(15.0)
+  tags                 String[]
+  cloudinary_public_id String?  @db.VarChar(255)
+  created_at           DateTime @default(now())
 
-  user           users          @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  reel_likes     reel_likes[]
-  reel_reposts   reel_reposts[]
-  saved_posts    saved_posts[]
-  stories        stories[]
+  user         users          @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  reel_likes   reel_likes[]
+  reel_reposts reel_reposts[]
+  saved_posts  saved_posts[]
+  stories      stories[]
+  reel_views   reel_views[]
+}
+
+model reel_views {
+  id         Int      @id @default(autoincrement())
+  reel_id    Int
+  user_id    Int
+  watch_time Int      @default(0)
+  completed  Boolean  @default(false)
+  viewed_at  DateTime @default(now())
+
+  reel reels @relation(fields: [reel_id], references: [id], onDelete: Cascade)
+  user users @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([reel_id, user_id])
 }
 
 model stories {
-  id          Int               @id @default(autoincrement())
-  user_id     Int
-  image_path  String
-  media_type  String            @default("image")
-  caption     String?
-  is_muted    Boolean           @default(false)
-  music       Json?
-  text_style  Json?
-  post_id     Int?
-  reel_id     Int?
-  created_at  DateTime          @default(now())
-  expires_at  DateTime
+  id         Int      @id @default(autoincrement())
+  user_id    Int
+  image_path String
+  media_type String   @default("image")
+  caption    String?
+  is_muted   Boolean  @default(false)
+  music      Json?
+  text_style Json?
+  post_id    Int?
+  reel_id    Int?
+  created_at DateTime @default(now())
+  expires_at DateTime
 
-  user        users             @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  post        posts?            @relation(fields: [post_id], references: [id])
-  reel        reels?            @relation(fields: [reel_id], references: [id])
-  highlights  story_highlight_items[]
-  reactions   story_reactions[]
-  views       story_seen[]
+  user       users                   @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  post       posts?                  @relation(fields: [post_id], references: [id])
+  reel       reels?                  @relation(fields: [reel_id], references: [id])
+  highlights story_highlight_items[]
+  reactions  story_reactions[]
+  views      story_seen[]
 }
 
 model comments {
@@ -262,8 +276,8 @@ model comments {
   content    String   @db.Text
   created_at DateTime @default(now())
 
-  post       posts    @relation(fields: [post_id], references: [id], onDelete: Cascade)
-  user       users    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  post posts @relation(fields: [post_id], references: [id], onDelete: Cascade)
+  user users @relation(fields: [user_id], references: [id], onDelete: Cascade)
 }
 
 model post_likes {
@@ -271,8 +285,8 @@ model post_likes {
   post_id    Int
   created_at DateTime @default(now())
 
-  user       users    @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  post       posts    @relation(fields: [post_id], references: [id], onDelete: Cascade)
+  user users @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  post posts @relation(fields: [post_id], references: [id], onDelete: Cascade)
 
   @@id([user_id, post_id])
 }
@@ -282,8 +296,8 @@ model reel_likes {
   reel_id    Int
   created_at DateTime @default(now())
 
-  user       users    @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  reel       reels    @relation(fields: [reel_id], references: [id], onDelete: Cascade)
+  user users @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  reel reels @relation(fields: [reel_id], references: [id], onDelete: Cascade)
 
   @@id([user_id, reel_id])
 }
@@ -293,8 +307,8 @@ model post_reposts {
   post_id    Int
   created_at DateTime @default(now())
 
-  user       users    @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  post       posts    @relation(fields: [post_id], references: [id], onDelete: Cascade)
+  user users @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  post posts @relation(fields: [post_id], references: [id], onDelete: Cascade)
 
   @@id([user_id, post_id])
 }
@@ -304,8 +318,8 @@ model reel_reposts {
   reel_id    Int
   created_at DateTime @default(now())
 
-  user       users    @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  reel       reels    @relation(fields: [reel_id], references: [id], onDelete: Cascade)
+  user users @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  reel reels @relation(fields: [reel_id], references: [id], onDelete: Cascade)
 
   @@id([user_id, reel_id])
 }
@@ -317,9 +331,9 @@ model saved_posts {
   reel_id    Int?
   created_at DateTime @default(now())
 
-  user       users    @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  post       posts?   @relation(fields: [post_id], references: [id], onDelete: Cascade)
-  reel       reels?   @relation(fields: [reel_id], references: [id], onDelete: Cascade)
+  user users  @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  post posts? @relation(fields: [post_id], references: [id], onDelete: Cascade)
+  reel reels? @relation(fields: [reel_id], references: [id], onDelete: Cascade)
 }
 
 model pinned_posts {
@@ -329,31 +343,31 @@ model pinned_posts {
   position   Int      @default(0)
   created_at DateTime @default(now())
 
-  user       users    @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  post       posts    @relation(fields: [post_id], references: [id], onDelete: Cascade)
+  user users @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  post posts @relation(fields: [post_id], references: [id], onDelete: Cascade)
 
   @@unique([user_id, post_id])
 }
 
 model story_highlights {
-  id          Int                     @id @default(autoincrement())
+  id          Int      @id @default(autoincrement())
   user_id     Int
   title       String
   cover_image String?
-  created_at  DateTime                @default(now())
+  created_at  DateTime @default(now())
 
-  user        users                   @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  items       story_highlight_items[]
+  user  users                   @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  items story_highlight_items[]
 }
 
 model story_highlight_items {
-  id           Int              @id @default(autoincrement())
+  id           Int @id @default(autoincrement())
   highlight_id Int
   story_id     Int
-  position     Int              @default(0)
+  position     Int @default(0)
 
-  highlight    story_highlights @relation(fields: [highlight_id], references: [id], onDelete: Cascade)
-  story        stories          @relation(fields: [story_id], references: [id], onDelete: Cascade)
+  highlight story_highlights @relation(fields: [highlight_id], references: [id], onDelete: Cascade)
+  story     stories          @relation(fields: [story_id], references: [id], onDelete: Cascade)
 }
 
 model story_reactions {
@@ -363,8 +377,8 @@ model story_reactions {
   emoji      String
   created_at DateTime @default(now())
 
-  story      stories  @relation(fields: [story_id], references: [id], onDelete: Cascade)
-  user       users    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  story stories @relation(fields: [story_id], references: [id], onDelete: Cascade)
+  user  users   @relation(fields: [user_id], references: [id], onDelete: Cascade)
 }
 
 model story_seen {
@@ -373,31 +387,28 @@ model story_seen {
   user_id    Int
   created_at DateTime @default(now())
 
-  story      stories  @relation(fields: [story_id], references: [id], onDelete: Cascade)
-  user       users    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  story stories @relation(fields: [story_id], references: [id], onDelete: Cascade)
+  user  users   @relation(fields: [user_id], references: [id], onDelete: Cascade)
 }
 
-
-
 model conversations {
-  id                  String                @id @default(uuid())
-  type                String                @default("direct") 
-  name                String?
-  description         String?
-  avatar              String?
-  is_vanish_mode      Boolean               @default(false)
-  is_secret           Boolean               @default(false)
-  is_encrypted        Boolean               @default(false)
-  slow_mode_delay     Int?                  @default(0)
-  custom_wallpaper    String?
-  category            String?
-  created_at          DateTime              @default(now())
-  updated_at          DateTime              @updatedAt
+  id               String   @id @default(uuid())
+  type             String   @default("direct")
+  name             String?
+  description      String?
+  avatar           String?
+  is_vanish_mode   Boolean  @default(false)
+  is_secret        Boolean  @default(false)
+  is_encrypted     Boolean  @default(false)
+  slow_mode_delay  Int?     @default(0)
+  custom_wallpaper String?
+  category         String?
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
 
-
-  archived_state      Boolean               @default(false)
-  hidden_state        Boolean               @default(false)
-  pinned_state        Boolean               @default(false)
+  archived_state Boolean @default(false)
+  hidden_state   Boolean @default(false)
+  pinned_state   Boolean @default(false)
 
   members             conversation_members[]
   messages            messages[]
@@ -414,530 +425,516 @@ model conversations {
 }
 
 model conversation_members {
-  id              String        @id @default(uuid())
+  id              String    @id @default(uuid())
   conversation_id String
   user_id         Int
   role_id         String?
-  role            String        @default("member") 
-  joined_at       DateTime      @default(now())
+  role            String    @default("member")
+  joined_at       DateTime  @default(now())
   last_read_at    DateTime?
-  is_muted        Boolean       @default(false)
-  is_pinned       Boolean       @default(false)
+  is_muted        Boolean   @default(false)
+  is_pinned       Boolean   @default(false)
 
-  conversation    conversations @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
-  user            users         @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  custom_role     group_roles?  @relation(fields: [role_id], references: [id])
+  conversation conversations @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+  user         users         @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  custom_role  group_roles?  @relation(fields: [role_id], references: [id])
 
   @@unique([conversation_id, user_id])
 }
 
-
-
 model group_roles {
-  id              String        @id @default(uuid())
+  id              String  @id @default(uuid())
   conversation_id String
   name            String
   color           String?
-  position        Int           @default(0)
-  permissions     Json?        
+  position        Int     @default(0)
+  permissions     Json?
 
-  members         conversation_members[]
+  members conversation_members[]
 }
 
 model group_invites {
-  id              String        @id @default(uuid())
+  id              String    @id @default(uuid())
   conversation_id String
   inviter_id      Int
   target_id       Int
-  status          String        @default("pending") 
-  created_at      DateTime      @default(now())
+  status          String    @default("pending")
+  created_at      DateTime  @default(now())
   expires_at      DateTime?
 
-  inviter         users         @relation("invite_sender", fields: [inviter_id], references: [id])
-  target          users         @relation("invite_target", fields: [target_id], references: [id])
+  inviter users @relation("invite_sender", fields: [inviter_id], references: [id])
+  target  users @relation("invite_target", fields: [target_id], references: [id])
 }
 
 model group_join_requests {
-  id              String        @id @default(uuid())
+  id              String   @id @default(uuid())
   conversation_id String
   user_id         Int
   reason          String?
-  status          String        @default("pending")
-  created_at      DateTime      @default(now())
+  status          String   @default("pending")
+  created_at      DateTime @default(now())
 
-  user            users         @relation(fields: [user_id], references: [id])
+  user users @relation(fields: [user_id], references: [id])
 }
 
 model group_audit_logs {
-  id              String        @id @default(uuid())
+  id              String   @id @default(uuid())
   conversation_id String
   actor_id        Int
-  action          String     
+  action          String
   target_id       String?
   metadata        Json?
-  created_at      DateTime      @default(now())
+  created_at      DateTime @default(now())
 
-  actor           users         @relation(fields: [actor_id], references: [id])
+  actor users @relation(fields: [actor_id], references: [id])
 }
 
 model group_banned_users {
-  id              String        @id @default(uuid())
+  id              String   @id @default(uuid())
   conversation_id String
   user_id         Int
   reason          String?
   banned_by       Int
-  created_at      DateTime      @default(now())
+  created_at      DateTime @default(now())
 }
 
-
-
 model messages {
-  id              String                @id @default(uuid())
-  conversation_id String
-  sender_id       Int
-  content         String?               @db.Text
-  type            String                @default("text") 
-  message_type    String                @default("text")
-  reply_to_id     String?
-  thread_id       String?             
-  client_message_id String?             @unique
-  is_vanish       Boolean               @default(false)
-  is_edited       Boolean               @default(false)
-  is_forwarded    Boolean               @default(false)
-  is_deleted      Boolean               @default(false)
-  is_read         Boolean               @default(false)
-  read_at         DateTime?
-  is_pinned       Boolean               @default(false)
-  group_id        Int?
-  created_at      DateTime              @default(now())
-  expires_at      DateTime?
+  id                String    @id @default(uuid())
+  conversation_id   String
+  sender_id         Int
+  content           String?   @db.Text
+  type              String    @default("text")
+  message_type      String    @default("text")
+  reply_to_id       String?
+  thread_id         String?
+  client_message_id String?   @unique
+  is_vanish         Boolean   @default(false)
+  is_edited         Boolean   @default(false)
+  is_forwarded      Boolean   @default(false)
+  is_deleted        Boolean   @default(false)
+  is_read           Boolean   @default(false)
+  read_at           DateTime?
+  is_pinned         Boolean   @default(false)
+  group_id          Int?
+  created_at        DateTime  @default(now())
+  expires_at        DateTime?
 
- 
-  delivery_state  String                @default("sent") 
+  delivery_state String @default("sent")
 
-  conversation    conversations         @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
-  reactions       message_reactions[]
-  reads           message_reads[]
-  edits           message_edits[]
-  ai_metadata     ai_message_metadata?
-  attachments     media_attachments[]
-  mentions        message_mentions[]
-  embeds          message_embeds[]
-  bookmarks       message_bookmarks[]
-  delivery_logs   delivery_attempts[]
-  poll            polls?
-  translation     message_translation_cache?
-  deletions       message_deletions[]
+  conversation  conversations              @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+  reactions     message_reactions[]
+  reads         message_reads[]
+  edits         message_edits[]
+  ai_metadata   ai_message_metadata?
+  attachments   media_attachments[]
+  mentions      message_mentions[]
+  embeds        message_embeds[]
+  bookmarks     message_bookmarks[]
+  delivery_logs delivery_attempts[]
+  poll          polls?
+  translation   message_translation_cache?
+  deletions     message_deletions[]
 
-  sender          users                 @relation(fields: [sender_id], references: [id], onDelete: Cascade)
-  reply_to        messages?             @relation("MessageReplies", fields: [reply_to_id], references: [id])
-  replies         messages[]            @relation("MessageReplies")
+  sender   users      @relation(fields: [sender_id], references: [id], onDelete: Cascade)
+  reply_to messages?  @relation("MessageReplies", fields: [reply_to_id], references: [id])
+  replies  messages[] @relation("MessageReplies")
 }
 
 model media_attachments {
-  id              String        @id @default(uuid())
-  message_id      String
-  type            String       
-  url             String
-  thumbnail       String?
-  blurhash        String?
-  metadata        Json?         
-  created_at      DateTime      @default(now())
+  id         String   @id @default(uuid())
+  message_id String
+  type       String
+  url        String
+  thumbnail  String?
+  blurhash   String?
+  metadata   Json?
+  created_at DateTime @default(now())
 
-  message         messages      @relation(fields: [message_id], references: [id], onDelete: Cascade)
-  variants        media_variants[]
+  message  messages         @relation(fields: [message_id], references: [id], onDelete: Cascade)
+  variants media_variants[]
 }
 
 model media_variants {
-  id              String        @id @default(uuid())
-  attachment_id   String
-  quality         String       
-  url             String
-  size            Int
+  id            String @id @default(uuid())
+  attachment_id String
+  quality       String
+  url           String
+  size          Int
 
-  attachment      media_attachments @relation(fields: [attachment_id], references: [id], onDelete: Cascade)
+  attachment media_attachments @relation(fields: [attachment_id], references: [id], onDelete: Cascade)
 }
 
 model shared_media {
-  id              String        @id @default(uuid())
+  id              String   @id @default(uuid())
   conversation_id String
   attachment_id   String
-  created_at      DateTime      @default(now())
+  created_at      DateTime @default(now())
 
-  conversation    conversations @relation(fields: [conversation_id], references: [id])
+  conversation conversations @relation(fields: [conversation_id], references: [id])
 }
 
 model message_mentions {
-  id              String        @id @default(uuid())
-  message_id      String
-  user_id         Int
-  type            String        @default("user")
+  id         String @id @default(uuid())
+  message_id String
+  user_id    Int
+  type       String @default("user")
 
-  message         messages      @relation(fields: [message_id], references: [id], onDelete: Cascade)
+  message messages @relation(fields: [message_id], references: [id], onDelete: Cascade)
 }
 
 model message_embeds {
-  id              String        @id @default(uuid())
-  message_id      String
-  url             String
-  title           String?
-  description     String?
-  thumbnail       String?
-  created_at      DateTime      @default(now())
+  id          String   @id @default(uuid())
+  message_id  String
+  url         String
+  title       String?
+  description String?
+  thumbnail   String?
+  created_at  DateTime @default(now())
 
-  message         messages      @relation(fields: [message_id], references: [id], onDelete: Cascade)
+  message messages @relation(fields: [message_id], references: [id], onDelete: Cascade)
 }
 
 model message_bookmarks {
-  id              String        @id @default(uuid())
-  user_id         Int
-  message_id      String
-  created_at      DateTime      @default(now())
+  id         String   @id @default(uuid())
+  user_id    Int
+  message_id String
+  created_at DateTime @default(now())
 
-  user            users         @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  message         messages      @relation(fields: [message_id], references: [id], onDelete: Cascade)
+  user    users    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  message messages @relation(fields: [message_id], references: [id], onDelete: Cascade)
 
   @@unique([user_id, message_id])
 }
 
 model message_translation_cache {
-  message_id      String        @id
-  language_code   String
-  content         String        @db.Text
-  created_at      DateTime      @default(now())
+  message_id    String   @id
+  language_code String
+  content       String   @db.Text
+  created_at    DateTime @default(now())
 
-  message         messages      @relation(fields: [message_id], references: [id], onDelete: Cascade)
+  message messages @relation(fields: [message_id], references: [id], onDelete: Cascade)
 }
 
-
 model polls {
-  id              String        @id @default(uuid())
-  message_id      String        @unique
+  id              String    @id @default(uuid())
+  message_id      String    @unique
   conversation_id String
   question        String
-  allow_multiple  Boolean       @default(false)
-  is_anonymous    Boolean       @default(false)
+  allow_multiple  Boolean   @default(false)
+  is_anonymous    Boolean   @default(false)
   expires_at      DateTime?
-  created_at      DateTime      @default(now())
+  created_at      DateTime  @default(now())
 
-  message         messages      @relation(fields: [message_id], references: [id], onDelete: Cascade)
-  conversation    conversations @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
-  options         poll_options[]
-  votes           poll_votes[]
+  message      messages       @relation(fields: [message_id], references: [id], onDelete: Cascade)
+  conversation conversations  @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+  options      poll_options[]
+  votes        poll_votes[]
 }
 
 model poll_options {
-  id              String        @id @default(uuid())
-  poll_id         String
-  text            String
-  position        Int           @default(0)
+  id       String @id @default(uuid())
+  poll_id  String
+  text     String
+  position Int    @default(0)
 
-  poll            polls         @relation(fields: [poll_id], references: [id], onDelete: Cascade)
-  votes           poll_votes[]
+  poll  polls        @relation(fields: [poll_id], references: [id], onDelete: Cascade)
+  votes poll_votes[]
 }
 
 model poll_votes {
-  id              String        @id @default(uuid())
-  poll_id         String
-  option_id       String
-  user_id         Int
-  created_at      DateTime      @default(now())
+  id         String   @id @default(uuid())
+  poll_id    String
+  option_id  String
+  user_id    Int
+  created_at DateTime @default(now())
 
-  poll            polls         @relation(fields: [poll_id], references: [id], onDelete: Cascade)
-  option          poll_options  @relation(fields: [option_id], references: [id], onDelete: Cascade)
-  user            users         @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  poll   polls        @relation(fields: [poll_id], references: [id], onDelete: Cascade)
+  option poll_options @relation(fields: [option_id], references: [id], onDelete: Cascade)
+  user   users        @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@unique([poll_id, user_id])
 }
 
-
-
 model rtc_sessions {
-  id              String        @id @default(uuid())
+  id              String    @id @default(uuid())
   conversation_id String
-  type            String        @default("audio") 
-  status          String        @default("active") 
-  started_at      DateTime      @default(now())
+  type            String    @default("audio")
+  status          String    @default("active")
+  started_at      DateTime  @default(now())
   ended_at        DateTime?
 
-  conversation    conversations @relation(fields: [conversation_id], references: [id])
-  participants    rtc_participants[]
-  metrics         rtc_quality_metrics[]
-  logs            rtc_reconnect_logs[]
+  conversation conversations         @relation(fields: [conversation_id], references: [id])
+  participants rtc_participants[]
+  metrics      rtc_quality_metrics[]
+  logs         rtc_reconnect_logs[]
 }
 
 model rtc_participants {
-  id              String        @id @default(uuid())
-  session_id      String
-  user_id         Int
-  joined_at       DateTime      @default(now())
-  left_at         DateTime?
-  device_info     Json?
+  id          String    @id @default(uuid())
+  session_id  String
+  user_id     Int
+  joined_at   DateTime  @default(now())
+  left_at     DateTime?
+  device_info Json?
 
-  session         rtc_sessions  @relation(fields: [session_id], references: [id], onDelete: Cascade)
-  user            users         @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  session rtc_sessions @relation(fields: [session_id], references: [id], onDelete: Cascade)
+  user    users        @relation(fields: [user_id], references: [id], onDelete: Cascade)
 }
 
 model rtc_quality_metrics {
-  id              String        @id @default(uuid())
-  session_id      String
-  user_id         Int
-  bitrate         Int?
-  packet_loss     Float?
-  latency         Int?
-  jitter          Int?
-  timestamp       DateTime      @default(now())
+  id          String   @id @default(uuid())
+  session_id  String
+  user_id     Int
+  bitrate     Int?
+  packet_loss Float?
+  latency     Int?
+  jitter      Int?
+  timestamp   DateTime @default(now())
 
-  session         rtc_sessions  @relation(fields: [session_id], references: [id], onDelete: Cascade)
+  session rtc_sessions @relation(fields: [session_id], references: [id], onDelete: Cascade)
 }
 
 model rtc_reconnect_logs {
-  id              String        @id @default(uuid())
-  session_id      String
-  user_id         Int
-  reason          String?
-  duration        Int?
-  timestamp       DateTime      @default(now())
+  id         String   @id @default(uuid())
+  session_id String
+  user_id    Int
+  reason     String?
+  duration   Int?
+  timestamp  DateTime @default(now())
 
-  session         rtc_sessions  @relation(fields: [session_id], references: [id], onDelete: Cascade)
+  session rtc_sessions @relation(fields: [session_id], references: [id], onDelete: Cascade)
 }
 
 model rtc_ice_candidates {
-  id              String        @id @default(uuid())
-  participant_id  String
-  candidate       Json
-  type            String        
-  timestamp       DateTime      @default(now())
+  id             String   @id @default(uuid())
+  participant_id String
+  candidate      Json
+  type           String
+  timestamp      DateTime @default(now())
 }
 
-
-
 model presence_sessions {
-  id              String        @id @default(uuid())
-  user_id         Int
-  device_id       String
-  socket_id       String
-  status          String        @default("online")
-  started_at      DateTime      @default(now())
-  ended_at        DateTime?
+  id         String    @id @default(uuid())
+  user_id    Int
+  device_id  String
+  socket_id  String
+  status     String    @default("online")
+  started_at DateTime  @default(now())
+  ended_at   DateTime?
 
-  user            users         @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user users @relation(fields: [user_id], references: [id], onDelete: Cascade)
 }
 
 model activity_sessions {
-  id              String        @id @default(uuid())
-  user_id         Int
-  type            String       
-  title           String
-  metadata        Json?
-  started_at      DateTime      @default(now())
-  ended_at        DateTime?
+  id         String    @id @default(uuid())
+  user_id    Int
+  type       String
+  title      String
+  metadata   Json?
+  started_at DateTime  @default(now())
+  ended_at   DateTime?
 
-  user            users         @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user users @relation(fields: [user_id], references: [id], onDelete: Cascade)
 }
 
-
-
 model unread_counters {
-  id              String        @id @default(uuid())
+  id              String   @id @default(uuid())
   user_id         Int
   conversation_id String
-  count           Int           @default(0)
+  count           Int      @default(0)
   last_message_id String?
-  updated_at      DateTime      @default(now())
+  updated_at      DateTime @default(now())
 
-  conversation    conversations @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+  conversation conversations @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
 }
 
 model delivery_attempts {
-  id              String        @id @default(uuid())
-  message_id      String
-  user_id         Int
-  status          String       
-  retry_count     Int           @default(0)
-  last_attempt    DateTime      @default(now())
+  id           String   @id @default(uuid())
+  message_id   String
+  user_id      Int
+  status       String
+  retry_count  Int      @default(0)
+  last_attempt DateTime @default(now())
 
-  message         messages      @relation(fields: [message_id], references: [id], onDelete: Cascade)
+  message messages @relation(fields: [message_id], references: [id], onDelete: Cascade)
 }
 
-
-
 model secret_chat_sessions {
-  id              String        @id @default(uuid())
+  id              String   @id @default(uuid())
   conversation_id String
   initiator_id    Int
   receiver_id     Int
-  handshake_state String       
+  handshake_state String
   public_key      String?
-  created_at      DateTime      @default(now())
+  created_at      DateTime @default(now())
 
-  conversation    conversations @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+  conversation conversations @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
 }
 
 model device_sessions {
-  id              String        @id @default(uuid())
-  user_id         Int
-  device_token    String?       @unique
-  device_name     String?
-  device_type     String?       
-  os              String?
-  is_trusted      Boolean       @default(false)
-  biometric_verified Boolean    @default(false)
-  ip_address      String?
-  user_agent      String?
-  location        String?       @default("Unknown Location")
-  refresh_token   String?
-  last_active     DateTime      @default(now())
-  created_at      DateTime      @default(now())
-  revoked_at      DateTime?
+  id                 String    @id @default(uuid())
+  user_id            Int
+  device_token       String?   @unique
+  device_name        String?
+  device_type        String?
+  os                 String?
+  is_trusted         Boolean   @default(false)
+  biometric_verified Boolean   @default(false)
+  ip_address         String?
+  user_agent         String?
+  location           String?   @default("Unknown Location")
+  refresh_token      String?
+  last_active        DateTime  @default(now())
+  created_at         DateTime  @default(now())
+  revoked_at         DateTime?
 
-  user            users         @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user users @relation(fields: [user_id], references: [id], onDelete: Cascade)
 }
 
-
-
 model ai_moderation_metadata {
-  id              String        @id @default(uuid())
-  target_type     String        
-  target_id       String
-  toxicity_score  Float?
-  spam_score      Float?
-  flag_reason     String?
-  is_safe         Boolean       @default(true)
-  metadata        Json?
-  created_at      DateTime      @default(now())
+  id             String   @id @default(uuid())
+  target_type    String
+  target_id      String
+  toxicity_score Float?
+  spam_score     Float?
+  flag_reason    String?
+  is_safe        Boolean  @default(true)
+  metadata       Json?
+  created_at     DateTime @default(now())
 }
 
 model chat_settings {
-  id                        String        @id @default(uuid())
+  id                        String   @id @default(uuid())
   user_id                   Int
   conversation_id           String
   target_user_id            Int?
-  read_receipts_enabled     Boolean       @default(true)
-  typing_indicators_enabled Boolean       @default(true)
-  is_muted                  Boolean       @default(false)
+  read_receipts_enabled     Boolean  @default(true)
+  typing_indicators_enabled Boolean  @default(true)
+  is_muted                  Boolean  @default(false)
   theme_color               String?
-  updated_at                DateTime      @default(now()) @updatedAt
+  updated_at                DateTime @default(now()) @updatedAt
 
-  user                      users         @relation("chat_user", fields: [user_id], references: [id], onDelete: Cascade)
-  target_user               users?        @relation("chat_target", fields: [target_user_id], references: [id])
-  conversation              conversations @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+  user         users         @relation("chat_user", fields: [user_id], references: [id], onDelete: Cascade)
+  target_user  users?        @relation("chat_target", fields: [target_user_id], references: [id])
+  conversation conversations @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
 
   @@unique([user_id, conversation_id])
 }
 
 model message_reactions {
-  id              String        @id @default(uuid())
-  message_id      String
-  user_id         Int
-  emoji           String
-  created_at      DateTime      @default(now())
+  id         String   @id @default(uuid())
+  message_id String
+  user_id    Int
+  emoji      String
+  created_at DateTime @default(now())
 
-  message         messages      @relation(fields: [message_id], references: [id], onDelete: Cascade)
-  user            users         @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  message messages @relation(fields: [message_id], references: [id], onDelete: Cascade)
+  user    users    @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@unique([message_id, user_id])
 }
 
 model message_reads {
-  id              String        @id @default(uuid())
-  message_id      String
-  user_id         Int
-  read_at         DateTime      @default(now())
+  id         String   @id @default(uuid())
+  message_id String
+  user_id    Int
+  read_at    DateTime @default(now())
 
-  message         messages      @relation(fields: [message_id], references: [id], onDelete: Cascade)
-  user            users         @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  message messages @relation(fields: [message_id], references: [id], onDelete: Cascade)
+  user    users    @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@unique([message_id, user_id])
 }
 
 model message_edits {
-  id              String        @id @default(uuid())
-  message_id      String
-  old_content     String        @db.Text
-  new_content     String        @db.Text
-  edited_at       DateTime      @default(now())
+  id          String   @id @default(uuid())
+  message_id  String
+  old_content String   @db.Text
+  new_content String   @db.Text
+  edited_at   DateTime @default(now())
 
-  message         messages      @relation(fields: [message_id], references: [id], onDelete: Cascade)
+  message messages @relation(fields: [message_id], references: [id], onDelete: Cascade)
 }
 
 model ai_message_metadata {
-  message_id      String        @id
-  summary         String?       @db.Text
-  sentiment       String?
-  is_automated    Boolean       @default(false)
-  confidence      Float?
-  entities        Json?         
+  message_id   String  @id
+  summary      String? @db.Text
+  sentiment    String?
+  is_automated Boolean @default(false)
+  confidence   Float?
+  entities     Json?
+  status       String?
+  moderation   String? @db.Text
+  suggestions  String[]
 
-  message         messages      @relation(fields: [message_id], references: [id], onDelete: Cascade)
+  message messages @relation(fields: [message_id], references: [id], onDelete: Cascade)
 }
 
 model message_deletions {
-  id              String        @id @default(uuid())
-  message_id      String
-  user_id         Int
-  deleted_at      DateTime      @default(now())
+  id         String   @id @default(uuid())
+  message_id String
+  user_id    Int
+  deleted_at DateTime @default(now())
 
-  message         messages      @relation(fields: [message_id], references: [id], onDelete: Cascade)
-  user            users         @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  message messages @relation(fields: [message_id], references: [id], onDelete: Cascade)
+  user    users    @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@unique([message_id, user_id])
 }
 
 model notifications {
-  id              String        @id @default(uuid())
-  user_id         Int
-  actor_id        Int?
-  type            String        // follow, like, comment, message, reaction
-  target_id       String?
-  target_type     String?
-  content         String?
-  is_read         Boolean       @default(false)
-  created_at      DateTime      @default(now())
+  id          String   @id @default(uuid())
+  user_id     Int
+  actor_id    Int?
+  type        String // follow, like, comment, message, reaction
+  target_id   String?
+  target_type String?
+  content     String?
+  is_read     Boolean  @default(false)
+  created_at  DateTime @default(now())
 
-  user            users         @relation("notif_user", fields: [user_id], references: [id], onDelete: Cascade)
-  actor           users?        @relation("notif_actor", fields: [actor_id], references: [id])
+  user  users  @relation("notif_user", fields: [user_id], references: [id], onDelete: Cascade)
+  actor users? @relation("notif_actor", fields: [actor_id], references: [id])
 }
 
 model cached_conversation_snapshots {
-  id              String        @id @default(uuid())
+  id              String   @id @default(uuid())
   conversation_id String
   last_message    Json?
   member_count    Int
   metadata        Json?
-  updated_at      DateTime      @default(now())
+  updated_at      DateTime @default(now())
 
-  conversation    conversations @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+  conversation conversations @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
 }
 
-
 model reports {
-  id           Int       @id @default(autoincrement())
-  reporter_id  Int
-  target_type  String    
-  target_id    String
-  reason       String
-  description  String?
-  status       String    @default("pending")
-  reviewed_by  Int?
-  created_at   DateTime  @default(now())
-  resolved_at  DateTime?
+  id          Int       @id @default(autoincrement())
+  reporter_id Int
+  target_type String
+  target_id   String
+  reason      String
+  description String?
+  status      String    @default("pending")
+  reviewed_by Int?
+  created_at  DateTime  @default(now())
+  resolved_at DateTime?
 
-  reporter     users     @relation("reports_reporter", fields: [reporter_id], references: [id], onDelete: Cascade)
-  reviewer     users?    @relation("reports_reviewer", fields: [reviewed_by], references: [id])
+  reporter users  @relation("reports_reporter", fields: [reporter_id], references: [id], onDelete: Cascade)
+  reviewer users? @relation("reports_reviewer", fields: [reviewed_by], references: [id])
 }
 
 model call_history {
-  id              String        @id @default(uuid())
+  id              String    @id @default(uuid())
   conversation_id String
   caller_id       Int
-  type            String        @default("audio")
-  status          String        @default("missed")
-  started_at      DateTime      @default(now())
+  type            String    @default("audio")
+  status          String    @default("missed")
+  started_at      DateTime  @default(now())
   ended_at        DateTime?
   duration        Int?
 
-  conversation    conversations @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+  conversation conversations @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
 }
 
 model groups {
@@ -948,52 +945,52 @@ model groups {
   group_pic   String?
   created_at  DateTime @default(now())
 
-  creator     users    @relation("GroupCreator", fields: [creator_id], references: [id], onDelete: Cascade)
+  creator users @relation("GroupCreator", fields: [creator_id], references: [id], onDelete: Cascade)
 }
 
 model scheduled_messages {
-  id              String        @id @default(uuid())
+  id              String   @id @default(uuid())
   conversation_id String
   sender_id       Int
-  content         String        @db.Text
+  content         String   @db.Text
   scheduled_for   DateTime
-  type            String        @default("text")
-  is_sent         Boolean       @default(false)
-  created_at      DateTime      @default(now())
+  type            String   @default("text")
+  is_sent         Boolean  @default(false)
+  created_at      DateTime @default(now())
 
-  conversation    conversations @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
-  sender          users         @relation(fields: [sender_id], references: [id], onDelete: Cascade)
+  conversation conversations @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+  sender       users         @relation(fields: [sender_id], references: [id], onDelete: Cascade)
 }
 
 model pinned_messages {
-  id              String        @id @default(uuid())
+  id              String   @id @default(uuid())
   conversation_id String
   message_id      String
   pinned_by       Int
-  pinned_at       DateTime      @default(now())
+  pinned_at       DateTime @default(now())
 
-  conversation    conversations @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+  conversation conversations @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
 }
 
 model otp_verifications {
-  id              String        @id @default(uuid())
-  identifier      String        
-  otp             String
-  purpose         String        
-  attempts        Int           @default(0)
-  is_verified     Boolean       @default(false)
-  expires_at      DateTime
-  created_at      DateTime      @default(now())
+  id          String   @id @default(uuid())
+  identifier  String
+  otp         String
+  purpose     String
+  attempts    Int      @default(0)
+  is_verified Boolean  @default(false)
+  expires_at  DateTime
+  created_at  DateTime @default(now())
 }
 
 model linked_accounts {
-  id              String        @id @default(uuid())
-  user_id         Int
-  provider        String        
-  identifier      String        @unique
-  is_primary      Boolean       @default(false)
-  verified_at     DateTime?
-  created_at      DateTime      @default(now())
+  id          String    @id @default(uuid())
+  user_id     Int
+  provider    String
+  identifier  String    @unique
+  is_primary  Boolean   @default(false)
+  verified_at DateTime?
+  created_at  DateTime  @default(now())
 
-  user            users         @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user users @relation(fields: [user_id], references: [id], onDelete: Cascade)
 }

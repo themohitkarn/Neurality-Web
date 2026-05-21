@@ -73,7 +73,7 @@ export const registerPrivacyHandler = (io: Server, socket: AuthenticatedSocket) 
   // 3. Report User/Message
   socket.on("content:report", async (data: { 
     targetType: "user" | "message"; 
-    targetId: string; 
+    targetId: number; 
     reason: string;
     description?: string;
   }) => {

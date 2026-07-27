@@ -33,7 +33,7 @@ def generate_refresh_token_in_db(user_id, session_id):
     session = db.session.get(DeviceSession, session_id)
     if session:
         session.refresh_token = hash_token(token)
-        db.session.commit()
+        db.session.flush()
         return token
     return None
 

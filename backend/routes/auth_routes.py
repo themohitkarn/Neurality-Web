@@ -1,8 +1,9 @@
 import re
 import random
+import traceback
 from datetime import datetime, timedelta
 
-from flask import Blueprint, g, jsonify, request
+from flask import Blueprint, current_app, g, jsonify, request
 from sqlalchemy import func, or_
 
 from extensions import db, limiter
@@ -85,12 +86,20 @@ def signup():
         db.session.commit()
     except Exception as exc:
         db.session.rollback()
+
+        traceback.print_exc()
+        current_app.logger.exception("Signup failed")
+
         if profile_pic_path:
             try:
                 delete_image(profile_pic_path)
             except Exception:
                 pass
-        return jsonify({"message": "Unable to create user. Please try again."}), 500
+
+        return jsonify({
+            "error": type(exc).__name__,
+            "message": str(exc)
+        }), 500
 
     response = jsonify(
         {
